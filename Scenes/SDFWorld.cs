@@ -359,7 +359,8 @@ public class World : MonoBehaviour
     // 1. EL PROCESO PRINCIPAL
     void BuildSurfaceNets()
     {
-        mMeshGenerator = new SurfaceNetsGenerator();
+        
+        mMeshGenerator = new SurfaceNetsGeneratorQEF();
         Material[] matarray = GenerateMaterials(mChunks.Length);
 
         for (int i = 0; i < mChunks.Length; i++)

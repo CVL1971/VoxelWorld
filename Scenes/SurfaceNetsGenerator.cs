@@ -50,7 +50,7 @@ public class SurfaceNetsGenerator : MeshGenerator
         return mesh;
     }
 
-    private void EmitCorrectFaces(Chunk p, Chunk[] a, Vector3Int w, int x, int y, int z, float iso, int[,,] vmap, List<int> tris, int size)
+    public void EmitCorrectFaces(Chunk p, Chunk[] a, Vector3Int w, int x, int y, int z, float iso, int[,,] vmap, List<int> tris, int size)
     {
         float d0 = VoxelUtils.GetDensityGlobal(p, a, w, x, y, z);
 
@@ -102,7 +102,7 @@ public class SurfaceNetsGenerator : MeshGenerator
     }
 
     // --- MÉTODOS AUXILIARES (Sin cambios lógicos, solo paso de parámetros) ---
-    private bool CellCrossesIso(Chunk p, Chunk[] a, Vector3Int w, int x, int y, int z, float iso)
+    public bool CellCrossesIso(Chunk p, Chunk[] a, Vector3Int w, int x, int y, int z, float iso)
     {
         bool first = VoxelUtils.GetDensityGlobal(p, a, w, x, y, z) >= iso;
         for (int i = 1; i < 8; i++)
@@ -113,7 +113,7 @@ public class SurfaceNetsGenerator : MeshGenerator
         return false;
     }
 
-    private Vector3 ComputeCellVertex(Chunk p, Chunk[] a, Vector3Int w, int x, int y, int z, float iso)
+    protected virtual Vector3 ComputeCellVertex(Chunk p, Chunk[] a, Vector3Int w, int x, int y, int z, float iso)
     {
         Vector3 sum = Vector3.zero; int count = 0;
         void CheckEdge(int x0, int y0, int z0, int x1, int y1, int z1)
@@ -132,7 +132,7 @@ public class SurfaceNetsGenerator : MeshGenerator
         return (count > 0) ? (sum / count) : new Vector3(x + 0.5f, y + 0.5f, z + 0.5f);
     }
 
-    private void AddQuad(List<int> tris, int v0, int v1, int v2, int v3)
+    public void AddQuad(List<int> tris, int v0, int v1, int v2, int v3)
     {
         tris.Add(v0); tris.Add(v1); tris.Add(v2); tris.Add(v0); tris.Add(v2); tris.Add(v3);
     }

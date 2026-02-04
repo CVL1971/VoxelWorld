@@ -2,16 +2,14 @@ using UnityEngine;
 
 public static class SDFGenerator
 {
-    private const float MACRO_SCALE = 0.008f;
-    private const float DETAIL_SCALE = 0.025f;
-    private const float ROUGH_SCALE = 0.1f;
-    private const float MAX_HEIGHT = 55.0f;
-    private const float GROUND_OFFSET = 10.0f;
+    // Parámetros de configuración del mundo
+    private const float BASE_SCALE = 0.006f;
+    private const float MOUNTAIN_SCALE = 0.015f;
+    private const float DETAIL_SCALE = 0.04f;
 
+    private const float MAX_HEIGHT = 60.0f;
     private const float ISO_SURFACE = 0.5f;
-
-    // Al subir esto a 100f, eliminamos el degradado suave y se vuelve "duro"
-    private const float SMOOTHNESS = 2.0f;
+    private const float SMOOTHNESS = 2.0f; // Mantenemos un valor bajo para suavidad natural
 
     public static void Sample(Chunk pChunk)
     {
@@ -20,22 +18,13 @@ public static class SDFGenerator
 
         for (int z = 0; z < size; z++)
         {
-            float worldZ = origin.z + z;
             for (int x = 0; x < size; x++)
             {
-                float worldX = origin.x + x;
-
-                float macro = Mathf.PerlinNoise(worldX * MACRO_SCALE, worldZ * MACRO_SCALE);
-                float detail = Mathf.PerlinNoise(worldX * DETAIL_SCALE, worldZ * DETAIL_SCALE);
-                float rough = Mathf.PerlinNoise(worldX * ROUGH_SCALE, worldZ * ROUGH_SCALE);
-
-                float combined = (macro * 0.6f) + (detail * 0.35f) + (rough * 0.05f);
-                float height = (Mathf.Pow(combined, 1.2f) * MAX_HEIGHT) + GROUND_OFFSET;
-
                 for (int y = 0; y < size; y++)
                 {
-                    // La fórmula ahora devolverá 0 o 1 casi instantáneamente
-                    float density = Mathf.Clamp01((height - (origin.y + y)) * SMOOTHNESS + ISO_SURFACE);
+                    Vector3 worldPos = new Vector3(origin.x + x, origin.y + y, origin.z + z);
+                    float density = Sample(worldPos);
+
                     pChunk.SetDensity(x, y, z, density);
                     pChunk.SetSolid(x, y, z, (byte)(density >= ISO_SURFACE ? 1 : 0));
                 }
@@ -45,63 +34,55 @@ public static class SDFGenerator
 
     public static float Sample(Vector3 worldPos)
     {
-        float m = Mathf.PerlinNoise(worldPos.x * MACRO_SCALE, worldPos.z * MACRO_SCALE);
-        float d = Mathf.PerlinNoise(worldPos.x * DETAIL_SCALE, worldPos.z * DETAIL_SCALE);
-        float r = Mathf.PerlinNoise(worldPos.x * ROUGH_SCALE, worldPos.z * ROUGH_SCALE);
-        float h = (Mathf.Pow((m * 0.6f) + (d * 0.35f) + (r * 0.05f), 1.2f) * MAX_HEIGHT) + GROUND_OFFSET;
+        float h = GetGeneratedHeight(worldPos.x, worldPos.z);
+        // La densidad es la diferencia entre la altura generada y el Y actual
         return Mathf.Clamp01((h - worldPos.y) * SMOOTHNESS + ISO_SURFACE);
     }
 
-    //public static Vector3 CalculateNormal(Vector3 worldPos)
-    //{
-    //    const float h = 0.05f;
+    public static float GetRawDistance(Vector3 worldPos)
+    {
+        float h = GetGeneratedHeight(worldPos.x, worldPos.z);
+        return worldPos.y - h;
+    }
 
-    //    // Mantenemos tu ruido de superficie
-    //    float noiseEntry = Mathf.PerlinNoise(worldPos.x * 0.8f, worldPos.z * 0.8f) * 0.2f;
+    private static float GetGeneratedHeight(float x, float z)
+    {
+        // 1. Ruido Base (Grandes masas de tierra)
+        float baseLand = Mathf.PerlinNoise(x * BASE_SCALE, z * BASE_SCALE);
 
-    //    // --- LUZ CORREGIDA ---
-    //    // Invertimos el orden (Restamos Posterior a Anterior) para que la normal apunte al aire
-    //    float dX = Sample(new Vector3(worldPos.x - h, worldPos.y, worldPos.z)) - Sample(new Vector3(worldPos.x + h, worldPos.y, worldPos.z));
-    //    float dY = Sample(new Vector3(worldPos.x, worldPos.y - h, worldPos.z)) - Sample(new Vector3(worldPos.x, worldPos.y + h, worldPos.z));
-    //    float dZ = Sample(new Vector3(worldPos.x, worldPos.y, worldPos.z - h)) - Sample(new Vector3(worldPos.x, worldPos.y, worldPos.z + h));
+        // 2. Ridged Noise (Para crestas de montañas afiladas)
+        // Invertimos el ruido para que los "valles" del Perlin sean "picos"
+        float mountainNoise = Mathf.PerlinNoise(x * MOUNTAIN_SCALE, z * MOUNTAIN_SCALE);
+        float ridges = 1.0f - Mathf.Abs(mountainNoise * 2.0f - 1.0f);
+        ridges = ridges * ridges; // Exponencial para afilar aún más las crestas
 
-    //    Vector3 normal = new Vector3(dX, dY, dZ);
+        // 3. Ruido de detalle (Pequeñas irregularidades)
+        float detail = (Mathf.PerlinNoise(x * DETAIL_SCALE, z * DETAIL_SCALE) * 2.0f - 1.0f) * 2.0f;
 
-    //    //---TU JITTER ORIGINAL ---
-    //    //Mantenemos esta mezcla exacta que es la que te da el look que buscas
-    //   Vector3 jitter = new Vector3(
-    //       Mathf.PerlinNoise(worldPos.y, worldPos.z) - 0.5f,
-    //       0,
-    //       Mathf.PerlinNoise(worldPos.x, worldPos.y) - 0.5f
-    //   ) * 0.1f;
+        // Combinación: Las montañas solo aparecen donde el baseLand es alto
+        float height = (baseLand * 30.0f) + (ridges * baseLand * 40.0f) + detail;
 
-    //    return (normal + jitter).normalized;
-    //    //return normal.normalized;
-    //}
+        return height + 15.0f; // Offset de elevación mínima
+    }
 
     public static Vector3 CalculateNormal(Vector3 worldPos)
     {
-        // 1. Aumentamos 'h' ligeramente (de 0.05 a 0.15). 
-        // Esto actúa como un "filtro" natural: ignora el ruido pequeño (manchas)
-        // pero mantiene las formas grandes (perfil).
-        const float h = 0.15f;
-
-        // 2. Gradiente Central (Diferencia de densidades)
-        // No necesitamos añadir ruido extra aquí, porque 'Sample' ya contiene
-        // el ruido con el que generaste el mundo. La normal lo seguirá fielmente.
+        const float h = 0.1f;
         float dX = Sample(new Vector3(worldPos.x - h, worldPos.y, worldPos.z)) - Sample(new Vector3(worldPos.x + h, worldPos.y, worldPos.z));
         float dY = Sample(new Vector3(worldPos.x, worldPos.y - h, worldPos.z)) - Sample(new Vector3(worldPos.x, worldPos.y + h, worldPos.z));
         float dZ = Sample(new Vector3(worldPos.x, worldPos.y, worldPos.z - h)) - Sample(new Vector3(worldPos.x, worldPos.y, worldPos.z + h));
 
-        Vector3 normal = new Vector3(dX, dY, dZ);
-
-        // 3. Normalización con protección de seguridad
-        // Si la zona es totalmente plana (normal cero), devolvemos Up para no romper el shader
-        if (normal.sqrMagnitude < 0.0001f)
-            return Vector3.up;
-
-        return normal.normalized;
+        Vector3 n = new Vector3(dX, dY, dZ);
+        return n.sqrMagnitude < 0.0001f ? Vector3.up : n.normalized;
     }
-
-
+    public static Vector3 CalculateNormalRaw(Vector3 worldPos)
+    {
+        // Subimos h a 0.25 (un cuarto de voxel). 
+        // Esto promedia el ruido y estabiliza la normal radicalmente.
+        const float h = 0.25f;
+        float dX = GetRawDistance(new Vector3(worldPos.x + h, worldPos.y, worldPos.z)) - GetRawDistance(new Vector3(worldPos.x - h, worldPos.y, worldPos.z));
+        float dY = GetRawDistance(new Vector3(worldPos.x, worldPos.y + h, worldPos.z)) - GetRawDistance(new Vector3(worldPos.x, worldPos.y - h, worldPos.z));
+        float dZ = GetRawDistance(new Vector3(worldPos.x, worldPos.y, worldPos.z + h)) - GetRawDistance(new Vector3(worldPos.x, worldPos.y, worldPos.z - h));
+        return new Vector3(dX, dY, dZ).normalized;
+    }
 }

@@ -54,7 +54,7 @@ public class FPSCamera : MonoBehaviour
         HandleModeSwitch();
 
         // Actualizamos la retícula y el rayo de depuración
-        UpdateInteractionVisuals();
+        //UpdateInteractionVisuals();
 
         if (!mNavigationMode)
             return;
@@ -103,46 +103,46 @@ public class FPSCamera : MonoBehaviour
     /// Gestiona el Raycast constante, posiciona la esfera en el punto exacto de impacto
     /// y loguea las coordenadas globales sin saturar el sistema.
     /// </summary>
-    private void UpdateInteractionVisuals()
-    {
-        if (mReticleSphere == null) return;
+    //private void UpdateInteractionVisuals()
+    //{
+    //    if (mReticleSphere == null) return;
 
-        // Rayo perfectamente paralelo a la cámara
-        Ray ray = new Ray(transform.position, transform.forward);
-        RaycastHit hit;
+    //    // Rayo perfectamente paralelo a la cámara
+    //    Ray ray = new Ray(transform.position, transform.forward);
+    //    RaycastHit hit;
 
-        bool hasHit = Physics.Raycast(ray, out hit, mInteractionRange);
-        string currentHitName = hasHit ? hit.collider.name : "Aire/Vacio";
+    //    bool hasHit = Physics.Raycast(ray, out hit, mInteractionRange);
+    //    string currentHitName = hasHit ? hit.collider.name : "Aire/Vacio";
 
-        // 1. Dibujar Rayo Debug (Parallel)
-        Debug.DrawRay(transform.position, transform.forward * mInteractionRange, mRayColor);
+    //    // 1. Dibujar Rayo Debug (Parallel)
+    //    Debug.DrawRay(transform.position, transform.forward * mInteractionRange, mRayColor);
 
-        // 2. Posicionar Retícula en el punto exacto
-        if (hasHit)
-        {
-            mReticleSphere.SetActive(true);
-            mReticleSphere.transform.position = hit.point;
+    //    // 2. Posicionar Retícula en el punto exacto
+    //    if (hasHit)
+    //    {
+    //        mReticleSphere.SetActive(true);
+    //        mReticleSphere.transform.position = hit.point;
 
-            // 3. Sistema de Log de Coordenadas Globales
-            // Solo imprimimos si cambiamos de objeto o si la posición ha cambiado significativamente (> 0.5 unidades)
-            if (currentHitName != mLastHitName || Vector3.Distance(hit.point, mLastHitPos) > 0.5f)
-            {
-                Debug.Log($"<color=white>[HIT]</color> Posición Global: <b>{hit.point.ToString("F2")}</b> | Objeto: {currentHitName}");
+    //        // 3. Sistema de Log de Coordenadas Globales
+    //        // Solo imprimimos si cambiamos de objeto o si la posición ha cambiado significativamente (> 0.5 unidades)
+    //        if (currentHitName != mLastHitName || Vector3.Distance(hit.point, mLastHitPos) > 0.5f)
+    //        {
+    //            Debug.Log($"<color=white>[HIT]</color> Posición Global: <b>{hit.point.ToString("F2")}</b> | Objeto: {currentHitName}");
 
-                mLastHitName = currentHitName;
-                mLastHitPos = hit.point;
-            }
-        }
-        else
-        {
-            if (mReticleSphere.activeSelf)
-            {
-                mReticleSphere.SetActive(false);
-                Debug.Log("<color=grey>[OUT]</color> Fuera de rango / Aire.");
-                mLastHitName = "Aire/Vacio";
-            }
-        }
-    }
+    //            mLastHitName = currentHitName;
+    //            mLastHitPos = hit.point;
+    //        }
+    //    }
+    //    else
+    //    {
+    //        if (mReticleSphere.activeSelf)
+    //        {
+    //            mReticleSphere.SetActive(false);
+    //            Debug.Log("<color=grey>[OUT]</color> Fuera de rango / Aire.");
+    //            mLastHitName = "Aire/Vacio";
+    //        }
+    //    }
+    //}
 
     private void TryModifyTerrain()
     {

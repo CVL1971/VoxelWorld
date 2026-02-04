@@ -145,8 +145,6 @@ public static class VoxelUtils
 
         return new List<int>(indices);
     }
-
-
 }
 
 

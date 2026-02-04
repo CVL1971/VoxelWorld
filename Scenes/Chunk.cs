@@ -81,19 +81,7 @@ public sealed class Chunk
         return mVoxels[index].solid; // 0 = aire, 1 = sólido
     }
 
-    public float GetDensity(int x, int y, int z)
-    {
-        if (!InBounds(x, y, z))
-        {
-            throw new System.Exception("Chunk.getDensity(int,int,int) out of bonds");
-            return 0.0f;
-        }
-      
-
-       return mVoxels[Index(x, y, z)].density;
-    }
-
-
+    
     // =========================
     // LECTURA CON 3 ESTADOS
     // 0 = Aire
@@ -162,37 +150,6 @@ public sealed class Chunk
         for (int i = 0; i < mVoxels.Length; i++)
             mVoxels[i].solid = 1;
     }
-
-    // =========================
-    // DEBUG VISUAL
-    // =========================
-
-    public void DrawDebug(Color pColor, float pduration)
-    {
-        // Calculamos las esquinas basadas en el origen global y el tamaño
-        Vector3 min = mWorldOrigin;
-        Vector3 max = mWorldOrigin + new Vector3(mSize, mSize, mSize);
-
-        // Base (Y inferior)
-        Debug.DrawLine(new Vector3(min.x, min.y, min.z), new Vector3(max.x, min.y, min.z), pColor,pduration);
-        Debug.DrawLine(new Vector3(max.x, min.y, min.z), new Vector3(max.x, min.y, max.z), pColor, pduration);
-        Debug.DrawLine(new Vector3(max.x, min.y, max.z), new Vector3(min.x, min.y, max.z), pColor, pduration);
-        Debug.DrawLine(new Vector3(min.x, min.y, max.z), new Vector3(min.x, min.y, min.z), pColor, pduration);
-
-        // Techo (Y superior)
-        Debug.DrawLine(new Vector3(min.x, max.y, min.z), new Vector3(max.x, max.y, min.z), pColor, pduration);
-        Debug.DrawLine(new Vector3(max.x, max.y, min.z), new Vector3(max.x, max.y, max.z), pColor, pduration);
-        Debug.DrawLine(new Vector3(max.x, max.y, max.z), new Vector3(min.x, max.y, max.z), pColor, pduration);
-        Debug.DrawLine(new Vector3(min.x, max.y, max.z), new Vector3(min.x, max.y, min.z), pColor, pduration);
-
-        // Columnas verticales (unión Base-Techo)
-        Debug.DrawLine(new Vector3(min.x, min.y, min.z), new Vector3(min.x, max.y, min.z), pColor, pduration);
-        Debug.DrawLine(new Vector3(max.x, min.y, min.z), new Vector3(max.x, max.y, min.z), pColor, pduration);
-        Debug.DrawLine(new Vector3(max.x, min.y, max.z), new Vector3(max.x, max.y, max.z), pColor, pduration);
-        Debug.DrawLine(new Vector3(min.x, min.y, max.z), new Vector3(min.x, max.y, max.z), pColor, pduration);
-    }
-
-   
 }
 
 

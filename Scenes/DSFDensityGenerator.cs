@@ -52,56 +52,29 @@ public static class SDFGenerator
         return Mathf.Clamp01((h - worldPos.y) * SMOOTHNESS + ISO_SURFACE);
     }
 
-    //public static Vector3 CalculateNormal(Vector3 worldPos)
-    //{
-    //    const float h = 0.05f;
-
-    //    // Mantenemos tu ruido de superficie
-    //    float noiseEntry = Mathf.PerlinNoise(worldPos.x * 0.8f, worldPos.z * 0.8f) * 0.2f;
-
-    //    // --- LUZ CORREGIDA ---
-    //    // Invertimos el orden (Restamos Posterior a Anterior) para que la normal apunte al aire
-    //    float dX = Sample(new Vector3(worldPos.x - h, worldPos.y, worldPos.z)) - Sample(new Vector3(worldPos.x + h, worldPos.y, worldPos.z));
-    //    float dY = Sample(new Vector3(worldPos.x, worldPos.y - h, worldPos.z)) - Sample(new Vector3(worldPos.x, worldPos.y + h, worldPos.z));
-    //    float dZ = Sample(new Vector3(worldPos.x, worldPos.y, worldPos.z - h)) - Sample(new Vector3(worldPos.x, worldPos.y, worldPos.z + h));
-
-    //    Vector3 normal = new Vector3(dX, dY, dZ);
-
-    //    //---TU JITTER ORIGINAL ---
-    //    //Mantenemos esta mezcla exacta que es la que te da el look que buscas
-    //   Vector3 jitter = new Vector3(
-    //       Mathf.PerlinNoise(worldPos.y, worldPos.z) - 0.5f,
-    //       0,
-    //       Mathf.PerlinNoise(worldPos.x, worldPos.y) - 0.5f
-    //   ) * 0.1f;
-
-    //    return (normal + jitter).normalized;
-    //    //return normal.normalized;
-    //}
-
     public static Vector3 CalculateNormal(Vector3 worldPos)
     {
-        // 1. Aumentamos 'h' ligeramente (de 0.05 a 0.15). 
-        // Esto actúa como un "filtro" natural: ignora el ruido pequeño (manchas)
-        // pero mantiene las formas grandes (perfil).
-        const float h = 0.15f;
+        const float h = 0.05f;
 
-        // 2. Gradiente Central (Diferencia de densidades)
-        // No necesitamos añadir ruido extra aquí, porque 'Sample' ya contiene
-        // el ruido con el que generaste el mundo. La normal lo seguirá fielmente.
+        // Mantenemos tu ruido de superficie
+        float noiseEntry = Mathf.PerlinNoise(worldPos.x * 0.8f, worldPos.z * 0.8f) * 0.2f;
+
+        // --- LUZ CORREGIDA ---
+        // Invertimos el orden (Restamos Posterior a Anterior) para que la normal apunte al aire
         float dX = Sample(new Vector3(worldPos.x - h, worldPos.y, worldPos.z)) - Sample(new Vector3(worldPos.x + h, worldPos.y, worldPos.z));
         float dY = Sample(new Vector3(worldPos.x, worldPos.y - h, worldPos.z)) - Sample(new Vector3(worldPos.x, worldPos.y + h, worldPos.z));
         float dZ = Sample(new Vector3(worldPos.x, worldPos.y, worldPos.z - h)) - Sample(new Vector3(worldPos.x, worldPos.y, worldPos.z + h));
 
         Vector3 normal = new Vector3(dX, dY, dZ);
 
-        // 3. Normalización con protección de seguridad
-        // Si la zona es totalmente plana (normal cero), devolvemos Up para no romper el shader
-        if (normal.sqrMagnitude < 0.0001f)
-            return Vector3.up;
+        // --- TU JITTER ORIGINAL ---
+        // Mantenemos esta mezcla exacta que es la que te da el look que buscas
+        Vector3 jitter = new Vector3(
+            Mathf.PerlinNoise(worldPos.y, worldPos.z) - 0.5f,
+            0,
+            Mathf.PerlinNoise(worldPos.x, worldPos.y) - 0.5f
+        ) * 0.1f;
 
-        return normal.normalized;
+        return (normal + jitter).normalized;
     }
-
-
 }

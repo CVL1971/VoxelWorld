@@ -1,0 +1,28 @@
+using UnityEngine;
+
+public static class VoxelCubeGeometry
+{
+    public static readonly Vector3[] Vertices =
+    {
+        new Vector3( 0.5f,-0.5f,-0.5f), new Vector3( 0.5f,-0.5f, 0.5f),
+        new Vector3( 0.5f, 0.5f, 0.5f), new Vector3( 0.5f, 0.5f,-0.5f),
+        new Vector3(-0.5f,-0.5f, 0.5f), new Vector3(-0.5f,-0.5f,-0.5f),
+        new Vector3(-0.5f, 0.5f,-0.5f), new Vector3(-0.5f, 0.5f, 0.5f),
+        new Vector3(-0.5f, 0.5f,-0.5f), new Vector3( 0.5f, 0.5f,-0.5f),
+        new Vector3( 0.5f, 0.5f, 0.5f), new Vector3(-0.5f, 0.5f, 0.5f),
+        new Vector3(-0.5f,-0.5f, 0.5f), new Vector3( 0.5f,-0.5f, 0.5f),
+        new Vector3( 0.5f,-0.5f,-0.5f), new Vector3(-0.5f,-0.5f,-0.5f),
+        new Vector3(-0.5f,-0.5f, 0.5f), new Vector3(-0.5f, 0.5f, 0.5f),
+        new Vector3( 0.5f, 0.5f, 0.5f), new Vector3( 0.5f,-0.5f, 0.5f),
+        new Vector3( 0.5f,-0.5f,-0.5f), new Vector3( 0.5f, 0.5f,-0.5f),
+        new Vector3(-0.5f, 0.5f,-0.5f), new Vector3(-0.5f,-0.5f,-0.5f),
+    };
+
+    public static readonly int[] Triangles =
+    {
+        0,2,1, 0,3,2, 4,6,5, 4,7,6,
+        8,10,9, 8,11,10, 12,14,13, 12,15,14,
+        16,18,17, 16,19,18, 20,22,21, 20,23,22
+    };
+}
+

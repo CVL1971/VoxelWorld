@@ -45,25 +45,26 @@ public class SurfaceNetsGeneratorQEF : SurfaceNetsGenerator
         return mesh;
     }
 
-    // Mantenemos el nombre original para ser coherentes con la clase base
     protected override Vector3 ComputeCellVertex(Chunk p, Chunk[] a, Vector3Int w, int x, int y, int z, float iso)
     {
         List<Vector3> points = new List<Vector3>();
         List<Vector3> nrms = new List<Vector3>();
         Vector3 massPoint = Vector3.zero;
 
-        // Función de ayuda para resolver cada arista con la SDF pura
+        // Volvemos a la solución mediante SDF Pura para máxima limpieza de superficie
         void SolveEdge(Vector3 p1, Vector3 p2)
         {
             float d1 = SDFGenerator.GetRawDistance((Vector3)p.mWorldOrigin + p1);
             float d2 = SDFGenerator.GetRawDistance((Vector3)p.mWorldOrigin + p2);
 
+            // Comprobamos si hay cruce por cero (cambio de signo)
             if (Mathf.Sign(d1) != Mathf.Sign(d2))
             {
                 float t = d1 / (d1 - d2 + 0.00001f);
                 Vector3 pLocal = Vector3.Lerp(p1, p2, t);
                 points.Add(pLocal);
-                // IMPORTANTE: CalculateNormalRaw debe usar un 'h' grande (0.25) en SDFGenerator
+
+                // Usamos el gradiente puro de la SDF
                 nrms.Add(SDFGenerator.CalculateNormalRaw((Vector3)p.mWorldOrigin + pLocal));
                 massPoint += pLocal;
             }
@@ -80,19 +81,24 @@ public class SurfaceNetsGeneratorQEF : SurfaceNetsGenerator
         if (points.Count == 0) return new Vector3(x + 0.5f, y + 0.5f, z + 0.5f);
         massPoint /= points.Count;
 
-        // --- FILTRO DE PLANICIDAD (Anti Piel de Lagarto) ---
+        // --- DETECTOR DE CURVATURA / PLANICIDAD ---
         float minDot = 1.0f;
         for (int i = 0; i < nrms.Count; i++)
             for (int j = i + 1; j < nrms.Count; j++)
                 minDot = Mathf.Min(minDot, Vector3.Dot(nrms[i], nrms[j]));
 
-        // Si la celda es casi plana (variación < 15°), no usamos QEF
-        if (minDot > 0.96f) return massPoint;
+        // Lógica de seguridad:
+        // 1. Si es muy plano (minDot > 0.98), Naive para evitar "piel de lagarto".
+        // 2. Si es muy curvo/agujero (minDot < 0.85), Naive para evitar "agujeros cuadrados".
+        if (minDot > 0.98f || minDot < 0.85f)
+        {
+            return massPoint;
+        }
 
-        // --- SOLVER QEF CON ANCLAJE ---
+        // --- SI PASA EL FILTRO, USAMOS QEF ---
         Vector3 qefPos = SolveQEF(points, nrms, massPoint);
 
-        // Mezclamos con el promedio para "relajar" la malla y evitar artefactos
+        // Mezclamos con el promedio usando tu SHARPNESS_STRENGTH actual
         Vector3 finalPos = Vector3.Lerp(massPoint, qefPos, SHARPNESS_STRENGTH);
 
         return new Vector3(

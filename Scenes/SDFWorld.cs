@@ -21,6 +21,8 @@ public class World : MonoBehaviour
     Mesh mWorldMesh;
 
     MeshGenerator mMeshGenerator;
+    SurfaceNetsGenerator mSurfaceNet = new SurfaceNetsGenerator();
+    SurfaceNetsGeneratorQEF mSurfaceNetQEF = new SurfaceNetsGeneratorQEF();
     private float mDebugTimer = 10f;
     private bool ms = true;
 
@@ -306,6 +308,7 @@ public class World : MonoBehaviour
 
         //// Invocamos al generador de Surface Nets
         //// Pasamos la colección completa de chunks para que GetDensitySafe resuelva los bordes
+        mMeshGenerator = mSurfaceNet;
         Mesh newMesh = mMeshGenerator.Generate(pChunk, mChunks, mWorldChunkSize);
 
         // Localizar el GameObject siguiendo tu convención de nombres en BuildSurfaceNets
@@ -360,7 +363,7 @@ public class World : MonoBehaviour
     void BuildSurfaceNets()
     {
         
-        mMeshGenerator = new SurfaceNetsGeneratorQEF();
+        mMeshGenerator = mSurfaceNetQEF;
         Material[] matarray = GenerateMaterials(mChunks.Length);
 
         for (int i = 0; i < mChunks.Length; i++)

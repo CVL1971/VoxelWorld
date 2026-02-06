@@ -33,19 +33,11 @@ public static class VoxelUtils
         return voxelCoord - (chunkCoord * chunkSize);
     }
 
-    public static int GetChunkIndex(int cx, int cy, int cz, Vector3Int worldChunkSize)
-    {
-        return cx + worldChunkSize.x * (cy + worldChunkSize.y * cz);
-    }
 
-    public static bool IsInBounds(int cx, int cy, int cz, Vector3Int worldChunkSize)
-    {
-        if (cx < 0 || cx >= worldChunkSize.x) return false;
-        if (cy < 0 || cy >= worldChunkSize.y) return false;
-        if (cz < 0 || cz >= worldChunkSize.z) return false;
-        return true;
-    }
 
+    // ==========================================================
+    // SOBRECARGAS PARA GENERADORES (ÚNICO PUNTO DE ACCESO)
+    // ==========================================================
     // ==========================================================
     // SOBRECARGAS PARA GENERADORES (ÚNICO PUNTO DE ACCESO)
     // ==========================================================
@@ -67,6 +59,11 @@ public static class VoxelUtils
         return target.DensityAt(gx - target.mWorldOrigin.x, gy - target.mWorldOrigin.y, gz - target.mWorldOrigin.z);
     }
 
+    public static int GetChunkIndex(int cx, int cy, int cz, Vector3Int worldChunkSize)
+    {
+        return cx + worldChunkSize.x * (cy + worldChunkSize.y * cz);
+    }
+
     public static bool IsSolidGlobal(Chunk currentChunk, Chunk[] allChunks, Vector3Int worldSize, int x, int y, int z)
     {
         int size = currentChunk.mSize;
@@ -82,6 +79,14 @@ public static class VoxelUtils
 
         Chunk target = allChunks[GetChunkIndex(cx, cy, cz, worldSize)];
         return target.SafeIsSolid(gx - target.mWorldOrigin.x, gy - target.mWorldOrigin.y, gz - target.mWorldOrigin.z);
+    }
+
+    public static bool IsInBounds(int cx, int cy, int cz, Vector3Int worldChunkSize)
+    {
+        if (cx < 0 || cx >= worldChunkSize.x) return false;
+        if (cy < 0 || cy >= worldChunkSize.y) return false;
+        if (cz < 0 || cz >= worldChunkSize.z) return false;
+        return true;
     }
 
     // ==========================================================

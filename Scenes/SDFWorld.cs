@@ -15,8 +15,10 @@ public class World : MonoBehaviour
     [SerializeField]
     Material mSurfaceMaterial;
 
-    Chunk[] mChunks;
-    Vector3Int mWorldChunkSize;
+    //Chunk[] mChunks;
+    Grid mGrid;
+    Vector3Int mGridInUnits;
+    Vector3Int mGridInChunks;
     GameObject mWorldRoot;
     Mesh mWorldMesh;
 
@@ -26,11 +28,15 @@ public class World : MonoBehaviour
     private float mDebugTimer = 10f;
     private bool ms = true;
 
-
-
-
     void Start()
     {
+        mGridInUnits= new Vector3Int (512, 64, 512);
+        mGridInChunks = new Vector3Int(
+          Mathf.CeilToInt(mGridInUnits.x / (float)mChunkSize),
+          Mathf.CeilToInt(mGridInUnits.y / (float)mChunkSize),
+          Mathf.CeilToInt(mGridInUnits.z / (float)mChunkSize)
+      );
+        mGrid = new Grid(mGridInChunks, mChunkSize);
         BuildWorld();
         if (true) BuildSurfaceNets();
     }
@@ -38,75 +44,8 @@ public class World : MonoBehaviour
 
     void Update()
     {
-        //mDebugTimer += Time.deltaTime;
-
-        //if (mDebugTimer >= 10f)
-        //{
-        //    // Llamamos a la función. 
-        //    // Pasamos 10f como duración para que las líneas no parpadeen
-        //    //ms = !ms;
-        //    //if (ms)
-        //    //{
-        //    //    DrawHierarchyDebug(mWorldRoot, 16f, Color.cyan, 10f);
-        //    //}
-        //    //else
-        //    //{
-        //        DrawHierarchyDebug2(mWorldRoot, 16f, Color.red, 10f);
-        //    //}
-
-        //    mDebugTimer = 0f; // Reiniciamos el contador
-        //}
+      
     }
-
-    // --- La función de dibujo ---
-    public void DrawHierarchyDebug(GameObject parent, float size, Color pColor, float duration)
-    {
-        if (parent == null) return;
-
-        for (int z = 0; z < mWorldChunkSize.z; z++)
-            for (int y = 0; y < mWorldChunkSize.y; y++)
-                for (int x = 0; x < mWorldChunkSize.x; x++)
-                {
-
-                    int index = ChunkIndex(x, y, z);
-                    mChunks[index].DrawDebug(Color.blue, duration);
-                }
-
-    }
-
-    public void DrawHierarchyDebug2(GameObject parent, float size, Color pColor, float duration)
-    {
-        if (parent == null) return;
-
-
-        int numeroDeHijos = parent.transform.childCount;
-        Debug.Log($"El padre tiene {numeroDeHijos} hijos directos.");
-        foreach (Transform child in parent.transform)
-        {
-            Vector3 min = child.position;
-            Vector3 max = min + new Vector3(size, size, size);
-
-            // Dibujamos las 12 líneas del cubo usando la duración especificada
-            // Base
-            Debug.DrawLine(new Vector3(min.x, min.y, min.z), new Vector3(max.x, min.y, min.z), pColor, duration);
-            Debug.DrawLine(new Vector3(max.x, min.y, min.z), new Vector3(max.x, min.y, max.z), pColor, duration);
-            Debug.DrawLine(new Vector3(max.x, min.y, max.z), new Vector3(min.x, min.y, max.z), pColor, duration);
-            Debug.DrawLine(new Vector3(min.x, min.y, max.z), new Vector3(min.x, min.y, min.z), pColor, duration);
-
-            // Techo
-            Debug.DrawLine(new Vector3(min.x, max.y, min.z), new Vector3(max.x, max.y, min.z), pColor, duration);
-            Debug.DrawLine(new Vector3(max.x, max.y, min.z), new Vector3(max.x, max.y, max.z), pColor, duration);
-            Debug.DrawLine(new Vector3(max.x, max.y, max.z), new Vector3(min.x, max.y, max.z), pColor, duration);
-            Debug.DrawLine(new Vector3(min.x, max.y, max.z), new Vector3(min.x, max.y, min.z), pColor, duration);
-
-            // Columnas
-            Debug.DrawLine(new Vector3(min.x, min.y, min.z), new Vector3(min.x, max.y, min.z), pColor, duration);
-            Debug.DrawLine(new Vector3(max.x, min.y, min.z), new Vector3(max.x, max.y, min.z), pColor, duration);
-            Debug.DrawLine(new Vector3(max.x, min.y, max.z), new Vector3(max.x, max.y, max.z), pColor, duration);
-            Debug.DrawLine(new Vector3(min.x, min.y, max.z), new Vector3(min.x, max.y, max.z), pColor, duration);
-        }
-    }
-
 
     void BuildWorld()
     {
@@ -120,32 +59,25 @@ public class World : MonoBehaviour
         // -----------------------------
         // 3. Create chunks
         // -----------------------------
-        mWorldChunkSize = new Vector3Int(
-            Mathf.CeilToInt(512/ (float)mChunkSize),
-            Mathf.CeilToInt(64/ (float)mChunkSize),
-            Mathf.CeilToInt(512/ (float)mChunkSize)
-        );
 
-        int chunkCount =
-            mWorldChunkSize.x *
-            mWorldChunkSize.y *
-            mWorldChunkSize.z;
+        if (mWorldRoot != null)
+            Destroy(mWorldRoot);
 
-        mChunks = new Chunk[chunkCount];
+        mWorldRoot = new GameObject("WorldRoot");
+        mWorldRoot.transform.position = Vector3.zero;
 
-        for (int z = 0; z < mWorldChunkSize.z; z++)
-            for (int y = 0; y < mWorldChunkSize.y; y++)
-                for (int x = 0; x < mWorldChunkSize.x; x++)
-                {
-                    Vector3Int coord = new Vector3Int(x, y, z);
-                    int index = ChunkIndex(x, y, z);
-                    mChunks[index] = new Chunk(coord, mChunkSize);
-                }
+        // -----------------------------
+        // 3. Create chunks
+        // -----------------------------
+      
+
+       
+
 
         // -----------------------------
         // 4. Phase 1: populate solids
         // -----------------------------
-        foreach (Chunk chunk in mChunks)
+        foreach (Chunk chunk in mGrid.mChunks)
         {
             // Una sola llamada por chunk:
             // 1. Calcula el ruido Perlin 2D (optimizado por columna)
@@ -177,7 +109,7 @@ public class World : MonoBehaviour
         float noiseAmp = 0.18f; // Amplitud del ruido para romper la simetría (0.1-0.3 voxels)
 
         Vector3 targetPos = hitPoint - hitNormal * 0.2f;
-        VoxelUtils.VoxelHit info = VoxelUtils.GetHitInfo(targetPos, mChunkSize, mWorldChunkSize);
+        VoxelUtils.VoxelHit info = VoxelUtils.GetHitInfo(targetPos, mChunkSize, mGrid.mSizeInChunks);
         if (!info.isValid) return;
 
         Vector3Int g = info.globalVoxelPos;
@@ -191,10 +123,10 @@ public class World : MonoBehaviour
                 for (int bx = g.x - range; bx <= g.x + range; bx++)
                 {
                     int cx = bx / mChunkSize, cy = by / mChunkSize, cz = bz / mChunkSize;
-                    if (!VoxelUtils.IsInBounds(cx, cy, cz, mWorldChunkSize)) continue;
+                    if (!VoxelUtils.IsInBounds(cx, cy, cz, mGrid.mSizeInChunks)) continue;
 
-                    int cIdx = VoxelUtils.GetChunkIndex(cx, cy, cz, mWorldChunkSize);
-                    Chunk nChunk = mChunks[cIdx];
+                    int cIdx = VoxelUtils.GetChunkIndex(cx, cy, cz, mGrid.mSizeInChunks);
+                    Chunk nChunk = mGrid.mChunks[cIdx];
                     int lx = bx - (cx * mChunkSize), ly = by - (cy * mChunkSize), lz = bz - (cz * mChunkSize);
 
                     Vector3 p = new Vector3(bx, by, bz);
@@ -229,7 +161,7 @@ public class World : MonoBehaviour
                     chunksToRebuild.Add(cIdx);
                 }
 
-        foreach (int index in chunksToRebuild) RebuildChunkGeometry(mChunks[index]);
+        foreach (int index in chunksToRebuild) RebuildChunkGeometry(mGrid.mChunks[index]);
     }
 
 
@@ -309,7 +241,7 @@ public class World : MonoBehaviour
         //// Invocamos al generador de Surface Nets
         //// Pasamos la colección completa de chunks para que GetDensitySafe resuelva los bordes
         mMeshGenerator = mSurfaceNet;
-        Mesh newMesh = mMeshGenerator.Generate(pChunk, mChunks, mWorldChunkSize);
+        Mesh newMesh = mMeshGenerator.Generate(pChunk, mGrid.mChunks, mGrid.mSizeInChunks);
 
         // Localizar el GameObject siguiendo tu convención de nombres en BuildSurfaceNets
         string goName = $"SurfaceNet_Chunk_{pChunk.mCoord.x}_{pChunk.mCoord.y}_{pChunk.mCoord.z}";
@@ -339,12 +271,7 @@ public class World : MonoBehaviour
     // =================================================
     // Utilities
     // =================================================
-    int ChunkIndex(int x, int y, int z)
-    {
-        return x +
-               mWorldChunkSize.x *
-               (y + mWorldChunkSize.y * z);
-    }
+   
 
     // --- Debug: chunk wireframe (unchanged) ---
     void OnRenderObject()
@@ -364,14 +291,14 @@ public class World : MonoBehaviour
     {
         
         mMeshGenerator = mSurfaceNetQEF;
-        Material[] matarray = GenerateMaterials(mChunks.Length);
+        Material[] matarray = GenerateMaterials(mGrid.mChunks.Length);
 
-        for (int i = 0; i < mChunks.Length; i++)
+        for (int i = 0; i < mGrid.mChunks.Length; i++)
         {
-            Chunk chunk = mChunks[i];
+            Chunk chunk = mGrid.mChunks[i];
 
             // 1. Generamos la malla (debe devolver coordenadas LOCALES 0-16)
-            Mesh chunkMesh = mMeshGenerator.Generate(chunk, mChunks, mWorldChunkSize);
+            Mesh chunkMesh = mMeshGenerator.Generate(chunk, mGrid.mChunks, mGrid.mSizeInChunks);
 
             // 2. Gestión de Ciclo de Vida: Evitar duplicados
             if (chunk.mViewGO == null)
@@ -498,10 +425,10 @@ public class World : MonoBehaviour
                     int cz = gz / mChunkSize;
 
                     // Verificamos si el vecino está dentro de los límites del mundo
-                    if (VoxelUtils.IsInBounds(cx, cy, cz, mWorldChunkSize))
+                    if (VoxelUtils.IsInBounds(cx, cy, cz, mGrid.mSizeInChunks))
                     {
-                        int cIdx = VoxelUtils.GetChunkIndex(cx, cy, cz, mWorldChunkSize);
-                        Chunk targetChunk = mChunks[cIdx];
+                        int cIdx = VoxelUtils.GetChunkIndex(cx, cy, cz, mGrid.mSizeInChunks);
+                        Chunk targetChunk = mGrid.mChunks[cIdx];
 
                         // Calculamos la posición local dentro de ESE chunk específico
                         int nlx = gx - (cx * mChunkSize);

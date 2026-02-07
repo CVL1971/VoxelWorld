@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 public class Grid
 {
-    private readonly Chunk[] mChunks;
+    public readonly Chunk[] mChunks;
     public readonly Vector3Int mSizeInChunks;
     public readonly int mChunkSize;
     public GameObject mWorldRoot;

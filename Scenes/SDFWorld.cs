@@ -6,8 +6,7 @@ using System.Collections.Generic;
 public class World : MonoBehaviour
 {
  
-    [Header("World settings")]
-    [SerializeField] int mChunkSize = 16;
+   int mChunkSize = 128;
 
     [Header("Rendering")]
     [SerializeField] Material mSolidMaterial;
@@ -22,17 +21,19 @@ public class World : MonoBehaviour
     Mesh mWorldMesh;
 
     MeshGenerator mMeshGenerator;
-    SurfaceNetsGenerator mSurfaceNet = new SurfaceNetsGenerator();
-    SurfaceNetsGeneratorQEF mSurfaceNetQEF = new SurfaceNetsGeneratorQEF();
+    SurfaceNetsGenerator2 mSurfaceNet = new SurfaceNetsGenerator2();
+    SurfaceNetsGenerator mSurfaceNetQEF = new SurfaceNetsGenerator();
  
     void Start()
     {
-        mGridInUnits= new Vector3Int (512, 64, 512);
-        mGridInChunks = new Vector3Int(
-          Mathf.CeilToInt(mGridInUnits.x / (float)mChunkSize),
-          Mathf.CeilToInt(mGridInUnits.y / (float)mChunkSize),
-          Mathf.CeilToInt(mGridInUnits.z / (float)mChunkSize)
-      );
+       
+        mGridInChunks = new Vector3Int(4, 2, 4);
+        mGridInUnits = mGridInChunks * mChunkSize;
+      //  mGridInChunks = new Vector3Int(
+      //    Mathf.CeilToInt(mGridInUnits.x / (float)mChunkSize),
+      //    Mathf.CeilToInt(mGridInUnits.y / (float)mChunkSize),
+      //    Mathf.CeilToInt(mGridInUnits.z / (float)mChunkSize)
+      //);
         mGrid = new Grid(mGridInChunks, mChunkSize);
         mGrid.ReadFromSDFGenerator();
 
@@ -140,6 +141,7 @@ public class World : MonoBehaviour
     void BuildSurfaceNets()
     { 
         mMeshGenerator = mSurfaceNetQEF;
+      
         Material[] matarray = GenerateMaterials(mGrid.mChunks.Length);
 
         for (int i = 0; i < mGrid.mChunks.Length; i++)

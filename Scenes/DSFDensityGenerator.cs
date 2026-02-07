@@ -45,24 +45,79 @@ public static class SDFGenerator
         return worldPos.y - h;
     }
 
-    private static float GetGeneratedHeight(float x, float z)
+    //private static float GetGeneratedHeight(float x, float z)
+    //{
+    //    // 1. Ruido Base (Grandes masas de tierra)
+    //    float baseLand = Mathf.PerlinNoise(x * BASE_SCALE, z * BASE_SCALE);
+
+    //    // 2. Ridged Noise (Para crestas de montañas afiladas)
+    //    // Invertimos el ruido para que los "valles" del Perlin sean "picos"
+    //    float mountainNoise = Mathf.PerlinNoise(x * MOUNTAIN_SCALE, z * MOUNTAIN_SCALE);
+    //    float ridges = 1.0f - Mathf.Abs(mountainNoise * 2.0f - 1.0f);
+    //    ridges = ridges * ridges; // Exponencial para afilar aún más las crestas
+
+    //    // 3. Ruido de detalle (Pequeñas irregularidades)
+    //    float detail = (Mathf.PerlinNoise(x * DETAIL_SCALE, z * DETAIL_SCALE) * 2.0f - 1.0f) * 2.0f;
+
+    //    // Combinación: Las montañas solo aparecen donde el baseLand es alto
+    //    float height = (baseLand * 30.0f) + (ridges * baseLand * 40.0f) + detail;
+
+    //    return height + 15.0f; // Offset de elevación mínima
+    //}
+
+    public static float GetGeneratedHeight(float x, float z)
     {
-        // 1. Ruido Base (Grandes masas de tierra)
-        float baseLand = Mathf.PerlinNoise(x * BASE_SCALE, z * BASE_SCALE);
+        // --- CONTINENTES (SIN WARP) ---
+        float C = Mathf.PerlinNoise(x * 0.0008f, z * 0.0008f);
 
-        // 2. Ridged Noise (Para crestas de montañas afiladas)
-        // Invertimos el ruido para que los "valles" del Perlin sean "picos"
-        float mountainNoise = Mathf.PerlinNoise(x * MOUNTAIN_SCALE, z * MOUNTAIN_SCALE);
-        float ridges = 1.0f - Mathf.Abs(mountainNoise * 2.0f - 1.0f);
-        ridges = ridges * ridges; // Exponencial para afilar aún más las crestas
+        // --- WARP SOLO PARA DETALLE Y MONTAÑAS ---
+        Vector2 p = Warp(x, z);
 
-        // 3. Ruido de detalle (Pequeñas irregularidades)
-        float detail = (Mathf.PerlinNoise(x * DETAIL_SCALE, z * DETAIL_SCALE) * 2.0f - 1.0f) * 2.0f;
+        // M: Montañas (ridged)
+        float noiseM = Mathf.PerlinNoise(p.x * 0.01f, p.y * 0.01f);
+        float M = 1.0f - Mathf.Abs((noiseM * 2.0f) - 1.0f);
 
-        // Combinación: Las montañas solo aparecen donde el baseLand es alto
-        float height = (baseLand * 30.0f) + (ridges * baseLand * 40.0f) + detail;
+        // D: detalle fino
+        float D = (Mathf.PerlinNoise(p.x * 0.08f, p.y * 0.08f) * 2.0f) - 1.0f;
 
-        return height + 15.0f; // Offset de elevación mínima
+        // --- MEZCLA ---
+        float baseLayer = SmoothStep(-0.2f, 0.6f, (C * 2.0f) - 1.0f);
+
+        float mountain = M * M;
+        mountain *= baseLayer * baseLayer;
+
+        float valley = baseLayer * (1.0f - mountain);
+
+        float h =
+             baseLayer * 40.0f +
+             mountain * 120.0f +
+             valley * 25.0f +
+             D * 5.0f * baseLayer; // evita ruido en océanos
+
+        return h;
+    }
+
+
+    /// <summary>
+    /// Implementación de SmoothStep estándar de HLSL/GLSL para C#
+    /// </summary>
+    public static float SmoothStep(float edge0, float edge1, float x)
+    {
+        // Clampeamos el valor entre 0 y 1 basándonos en los bordes
+        float t = Mathf.Clamp01((x - edge0) / (edge1 - edge0));
+        // Fórmula polinómica: 3t^2 - 2t^3
+        return t * t * (3.0f - 2.0f * t);
+    }
+
+    static Vector2 Warp(float x, float z)
+    {
+        float wx = Mathf.PerlinNoise(x * 0.002f, z * 0.002f);
+        float wz = Mathf.PerlinNoise(x * 0.002f + 53.1f, z * 0.002f + 17.7f);
+
+        wx = (wx * 2f - 1f);
+        wz = (wz * 2f - 1f);
+
+        return new Vector2(x + wx * 80f, z + wz * 80f);
     }
 
     public static Vector3 CalculateNormal(Vector3 worldPos)

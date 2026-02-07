@@ -127,7 +127,7 @@ public class FPSCamera : MonoBehaviour
             // Solo imprimimos si cambiamos de objeto o si la posición ha cambiado significativamente (> 0.5 unidades)
             if (currentHitName != mLastHitName || Vector3.Distance(hit.point, mLastHitPos) > 0.5f)
             {
-                Debug.Log($"<color=white>[HIT]</color> Posición Global: <b>{hit.point.ToString("F2")}</b> | Objeto: {currentHitName}");
+                //Debug.Log($"<color=white>[HIT]</color> Posición Global: <b>{hit.point.ToString("F2")}</b> | Objeto: {currentHitName}");
 
                 mLastHitName = currentHitName;
                 mLastHitPos = hit.point;
@@ -138,7 +138,7 @@ public class FPSCamera : MonoBehaviour
             if (mReticleSphere.activeSelf)
             {
                 mReticleSphere.SetActive(false);
-                Debug.Log("<color=grey>[OUT]</color> Fuera de rango / Aire.");
+                //Debug.Log("<color=grey>[OUT]</color> Fuera de rango / Aire.");
                 mLastHitName = "Aire/Vacio";
             }
         }
@@ -153,7 +153,7 @@ public class FPSCamera : MonoBehaviour
 
         if (Physics.Raycast(ray, out hit, mInteractionRange))
         {
-            Debug.Log($"<color=red>[ACCIÓN]</color> Modificando voxel en coordenadas: {hit.point}");
+            //Debug.Log($"<color=red>[ACCIÓN]</color> Modificando voxel en coordenadas: {hit.point}");
             mWorld.ExecuteModification(hit.point, hit.normal, 0);
         }
     }

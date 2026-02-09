@@ -146,7 +146,7 @@ Transform:
   m_GameObject: {fileID: 1487303248}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 7.09953, y: -1, z: 45.648}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -258,6 +258,7 @@ GameObject:
   - component: {fileID: 1581330781}
   - component: {fileID: 1581330784}
   - component: {fileID: 1581330783}
+  - component: {fileID: 1581330785}
   m_Layer: 0
   m_Name: Directional Light
   m_TagString: Untagged
@@ -357,7 +358,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 49f560111972c23448661046175aeb38, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::World
-  mChunkSize: 16
   mSolidMaterial: {fileID: 2100000, guid: fe58b3f360a3acd49a02b638820c6494, type: 2}
   mSurfaceMaterial: {fileID: 2100000, guid: fe58b3f360a3acd49a02b638820c6494, type: 2}
 --- !u!114 &1581330784
@@ -389,6 +389,18 @@ MonoBehaviour:
   m_ShadowLayerMask: 1
   m_RenderingLayers: 1
   m_ShadowRenderingLayers: 1
+--- !u!114 &1581330785
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1581330780}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 73cddd2ea4bb9184e9118a0e22102f5a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::RenderQueue
 --- !u!1 &2142115473
 GameObject:
   m_ObjectHideFlags: 0

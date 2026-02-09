@@ -8,14 +8,14 @@ public sealed class Chunk
     // =========================
 
     public readonly Vector3Int mCoord;
-    public readonly int mSize;
+    public int mSize;
     public readonly Vector3Int mWorldOrigin;
 
     // =========================
     // Datos voxel
     // =========================
 
-    public readonly VoxelData[] mVoxels;
+    public VoxelData[] mVoxels;
 
     // =========================
     // Vista (opcional, externa)
@@ -38,8 +38,87 @@ public sealed class Chunk
             pCoord.z * pSize
         );
 
-        mVoxels = new VoxelData[pSize * pSize * pSize];
+        mVoxels = VoxelArrayPool.Get(mSize);
+        //mVoxels = new VoxelData[pSize * pSize * pSize];
     }
+
+    public void OnDestroy() // O cuando el chunk se desactiva
+    {
+        if (mVoxels != null)
+        {
+            VoxelArrayPool.Return(mVoxels);
+            mVoxels = null;
+
+            //destroy mViewGO Logic
+
+            // 2. Limpiar los objetos de Unity (GPU/Escena)
+            if (mViewGO != null)
+            {
+                // Importante: Extraemos la malla antes de destruir el GO
+                MeshFilter filter = mViewGO.GetComponent<MeshFilter>();
+                if (filter != null && filter.sharedMesh != null)
+                {
+                    // DESTROZAR la malla de la memoria de vídeo (VRAM)
+                    // Si no haces esto, cada vez que destruyas un chunk perderás megas de VRAM
+                    Object.Destroy(filter.sharedMesh);
+                }
+
+                MeshCollider collider = mViewGO.GetComponent<MeshCollider>();
+                if (collider != null && collider.sharedMesh != null)
+                {
+                    // A veces el collider comparte la malla, pero por seguridad
+                    // nos aseguramos de que la referencia se limpie.
+                    collider.sharedMesh = null;
+                }
+
+                // Finalmente destruimos el contenedor en la escena
+                Object.Destroy(mViewGO);
+                mViewGO = null;
+            }
+        }
+    }
+
+    public void Redim(int pSize)
+    {
+        VoxelArrayPool.Return(mVoxels);
+        // Pedimos el nuevo
+        mVoxels = VoxelArrayPool.Get(pSize);
+        mSize = pSize;
+
+        //inconsistency nViewGO logic
+    }
+
+    public void ApplyBrush(VoxelBrush pBrush)
+    {
+        // mSize es el tamaño del array (ej. 128)
+        for (int vz = 0; vz < mSize; vz++)
+            for (int vy = 0; vy < mSize; vy++)
+                for (int vx = 0; vx < mSize; vx++)
+                {
+                    // Suma vectorial directa: Origen del Chunk + coordenadas locales
+                    Vector3 vWorldPos = new Vector3(
+                        mWorldOrigin.x + vx,
+                        mWorldOrigin.y + vy,
+                        mWorldOrigin.z + vz
+                    );
+
+                    // El radio de influencia suele incluir un margen para el factor k
+                    float vDistThreshold = pBrush.mRadius + pBrush.mK * 2f;
+
+                    // Usamos sqrMagnitude si quisiéramos optimizar más, 
+                    // pero para seguir tu lógica actual usamos Distance
+                    if (Vector3.Distance(vWorldPos, pBrush.mCenter) <= vDistThreshold)
+                    {
+                        float vCurrentD = GetDensity(vx, vy, vz);
+                        float vNewD = pBrush.CalculateDensity(vWorldPos, vCurrentD);
+
+                        SetDensity(vx, vy, vz, Mathf.Clamp01(vNewD));
+                        // Actualizamos el estado sólido basándonos en el umbral
+                        SetSolid(vx, vy, vz, vNewD > 0.5f ? (byte)1 : (byte)0);
+                    }
+                }
+    }
+
     public float DensityAt(int x, int y, int z)
     {
         // Usamos InBounds (que ya tienes definido) para verificar si el punto está dentro

@@ -21,7 +21,7 @@ public class World : MonoBehaviour
     RenderQueue mRenderQueue;
 
     MeshGenerator mMeshGenerator;
-    SurfaceNetsGenerator mSurfaceNet = new SurfaceNetsGenerator();
+    SurfaceNetsGeneratorQEF mSurfaceNet = new SurfaceNetsGeneratorQEF();
     SurfaceNetsGeneratorQEF mSurfaceNetQEF = new SurfaceNetsGeneratorQEF();
   
 

@@ -35,7 +35,7 @@ public static class ChunkSurfaceRender
         // =========================
 
         MeshFilter filter = pChunk.mViewGO.GetComponent<MeshFilter>();
-        Mesh mesh = pGenerator.Generate(pChunk);
+        //Mesh mesh = pGenerator.Generate(pChunk);
         //filter.mesh = mesh;
     }
 

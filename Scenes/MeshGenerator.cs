@@ -1,9 +1,7 @@
 using UnityEngine;
 
-public interface MeshGenerator
+public abstract class MeshGenerator
 {
-    Mesh Generate(Chunk pChunk);
-    Mesh Generate(Chunk[] pChunks);
-    Mesh Generate(Chunk pChunk, Chunk[] allChunks, Vector3Int worldSize);
+    // El contrato ahora exige devolver MeshData
+    public abstract MeshData Generate(Chunk pChunk, Chunk[] allChunks, Vector3Int worldSize);
 }
-

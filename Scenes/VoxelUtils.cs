@@ -153,14 +153,20 @@ public static class VoxelUtils
 
         return new List<int>(indices);
     }
-
     // [0] Resolución | [1] Paso | [2] DistanciaSq | [3] LOD_Index
     public static readonly float[] LOD_DATA =
     {
-        32f, 1.0f, 2304f,   0f, // Bloque 0
-        16f, 2.0f, 16384f,  1f, // Bloque 4
-        8f,  4.0f, 1000000f, 2f  // Bloque 8
-    };
+    // LOD 0: Blanco. Hasta 96 metros (3 chunks de distancia)
+    // 96 * 96 = 9216
+    32f, 1.0f, 9216f,   0f, 
+
+    // LOD 1: Azul. Hasta 256 metros (8 chunks de distancia)
+    // 256 * 256 = 65536
+    16f, 2.0f, 65536f,  1f, 
+
+    // LOD 2: Rojo. A partir de 256 metros hasta el infinito
+    8f,  4.0f, 1000000f, 2f
+};
 
     // --- LAS CUATRO LLAVES DEL MINISTERIO ---
 
@@ -193,6 +199,27 @@ public static class VoxelUtils
     public static int GetInfoLod(int pLod) => pLod * 4;
 
     // ----------------------------------------
+
+    
+
+    public static Vector3 GetChunkCenter(Vector3 pOriginOriginal, float pSizeOriginal)
+    {
+        float vHalf = pSizeOriginal * 0.5f;
+        return new Vector3(
+            pOriginOriginal.x + vHalf,
+            pOriginOriginal.y + vHalf,
+            pOriginOriginal.z + vHalf
+        );
+    }
+
+    public static Vector3 GetGridCenter(Vector3Int pGridInChunks, int pChunkSize)
+    {
+        return new Vector3(
+            (pGridInChunks.x * pChunkSize) * 0.5f,
+            (pGridInChunks.y * pChunkSize) * 0.5f,
+            (pGridInChunks.z * pChunkSize) * 0.5f
+        );
+    }
 
 
 }

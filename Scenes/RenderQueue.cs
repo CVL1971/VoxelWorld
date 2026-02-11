@@ -7,7 +7,7 @@ using UnityEngine;
 public struct RenderRequest
 {
     public Chunk chunk;
-    public MeshGenerator generator;
+    public MeshGenerator generator; 
     public RenderRequest(Chunk pChunk, MeshGenerator pGenerator)
     {
         this.chunk = pChunk;
@@ -51,7 +51,7 @@ public class RenderQueue
                 vChunk.mTargetSize = 0;
 
                 // Por ahora, el ResampleData se queda pendiente para la fase 2
-                // vRequest.generator.ResampleData(vChunk); 
+                SDFGenerator.ResampleData(vChunk); 
             }
 
             // --- GENERACIÓN DE MALLA (Tu lógica original) ---

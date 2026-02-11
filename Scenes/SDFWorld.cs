@@ -33,6 +33,11 @@ public class World : MonoBehaviour
     private Vigilante mVigilante;
     private DecimationManager mDecimator;
 
+    [Header("Configuración de Carga")]
+    [SerializeField] int mMinQueueToProcess = 10; // No disparamos núcleos por menos de 10 chunks de LOD
+    [SerializeField] float mMaxWaitTime = 1.0f;   // Pero si pasa 1 segundo, procesamos lo que haya
+    private float mTimer = 0f;
+
 
     void Start()
     {
@@ -41,7 +46,7 @@ public class World : MonoBehaviour
         sw = Stopwatch.StartNew();
 
         mRenderQueue = new RenderQueue();
-        mGridInChunks = new Vector3Int(8, 8, 8);
+        mGridInChunks = new Vector3Int(16, 16, 16);
         mGridInUnits = mGridInChunks * mChunkSize;
         mGrid = new Grid(mGridInChunks, mChunkSize);
         mGrid.ReadFromSDFGenerator();
@@ -57,6 +62,8 @@ public class World : MonoBehaviour
         sw.Stop();
         UnityEngine.Debug.Log($"[SurfaceNets] MESH BUILDER: {sw.Elapsed.TotalMilliseconds:F3} ms");
 
+
+
         // 2. Inicializar el Decimator (Cerebro)
         mDecimator = new DecimationManager();
         mDecimator.Setup(mRenderQueue, mSurfaceNetQEF);
@@ -64,6 +71,7 @@ public class World : MonoBehaviour
         // 3. Inicializar el Vigilante (Ojos)
         mVigilante = new Vigilante();
         mVigilante.Setup(mGrid, mDecimator); // O el transform del Player
+        mVigilante.vCurrentCamPos = mCamera.transform.position;
 
         // 4. ¡ARRANQUE DEL HILO!
         // No usamos 'await' aquí para que no bloquee el Start de Unity.
@@ -119,7 +127,32 @@ public class World : MonoBehaviour
         {
             break; 
         }
-    }
+
+            int vQueueCount = mRenderQueue.mQueue.Count;
+
+            if (vQueueCount > 0)
+            {
+                mTimer += Time.deltaTime;
+
+                // POLÍTICA DE DISPARO:
+                // 1. Hemos superado el límite (ej. 10 chunks acumulados por el Vigilante)
+                // 2. O hemos esperado demasiado tiempo (para que el mundo no se quede estático)
+                // 3. O hay algo marcado como urgente (opcional, si añades un flag de urgencia)
+
+                if (vQueueCount >= mMinQueueToProcess || mTimer >= mMaxWaitTime)
+                {
+                    // ¡A TRABAJAR!
+                    mRenderQueue.ProcessParallel();
+
+                    // Reset de tiempo tras el procesado
+                    mTimer = 0f;
+                }
+            }
+            else
+            {
+                mTimer = 0f;
+            }
+        }
 
 
         //if (mGrid == null) return;

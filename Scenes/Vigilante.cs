@@ -6,6 +6,8 @@ public class Vigilante
 {
     private Grid mGrid;
     private DecimationManager mDecimator;
+
+    // Ignorada en el cálculo para este test, tú eres el espectador libre
     public Vector3 vCurrentCamPos;
 
     public void Setup(Grid pGrid, DecimationManager pDecimator)
@@ -16,39 +18,92 @@ public class Vigilante
 
     public async Task Run(CancellationToken pToken)
     {
+        // 1. EL PUNTO DE MIRA (La Baliza)
+        // Fijamos el centro en la mitad del mundo lógico (8 chunks * 32 / 2)
+        Vector3 vViewLocation = vCurrentCamPos;
+
+        
+        await Task.Delay(500, pToken);
+
         while (!pToken.IsCancellationRequested)
         {
-            Vector3 vPos = vCurrentCamPos;
             Chunk[] vChunks = mGrid.mChunks;
 
             for (int i = 0; i < vChunks.Length; i++)
             {
                 Chunk vChunk = vChunks[i];
-                float vDistSq = (vChunk.mWorldOrigin - vPos).sqrMagnitude;
+                if (vChunk == null) continue;
 
-                // 1. Consulta a la Autoridad (VoxelUtils) para obtener el bloque de datos
-                int vBase = VoxelUtils.GetInfoDist(vDistSq);
-                int vTargetRes = (int)VoxelUtils.LOD_DATA[vBase]; // Resolución objetivo
-                float vLimitSq = VoxelUtils.LOD_DATA[vBase + 2]; // Distancia límite del bloque
+                // --- ACCESO A DATOS 100% ORIGINALES DEL CHUNK ---
+                // No hay multiplicadores mágicos, ni rejillas ad-hoc.
+                // Leemos lo que el objeto TIENE en su memoria interna.
 
-                // 2. Detección de necesidad de cambio
-                bool vNecesitaCambio = (vChunk.mSize != vTargetRes);
-                string vTag = vNecesitaCambio ? "<color=orange><b>[CAMBIO]</b></color> " : "";
+                Vector3 vOriginOriginal = (Vector3)vChunk.mWorldOrigin;
+                float vSizeOriginal = vChunk.mSize;
 
-                // 3. Log de Vigilante con datos objetivos
-                Debug.Log($"{vTag}[Vigilante] Chunk:{vChunk.mWorldOrigin} | " +
-                          $"DistSq:{vDistSq:F0} | " +
-                          $"LimitSq:{vLimitSq} | " +
-                          $"Res:{vChunk.mSize} -> {vTargetRes}");
+                // Calculamos el centro usando SU origen y SU tamaño
 
-                if (vNecesitaCambio)
+                Vector3 vCenter = VoxelUtils.GetChunkCenter(vOriginOriginal, vSizeOriginal);
+               
+                // --- MÉTRICA CONTRA LA BALIZA ---
+                float vDistSq = (vCenter - vViewLocation).sqrMagnitude;
+
+                // --- DECISIÓN ---
+                int vBaseIndex = VoxelUtils.GetInfoDist(vDistSq);
+                int vTargetRes = (int)VoxelUtils.LOD_DATA[vBaseIndex];
+
+       
+
+                // 2. --- ASIGNACIÓN DE COLOR (Sin condicionantes) ---
+                // Dividimos por 4 para tener el índice del switch (0, 1, 2)
+                int vLodIndex = vBaseIndex / 4;
+                Color vDebugColor;
+
+                switch (vLodIndex)
+                {
+                    case 0: // LOD Máximo (Res 32)
+                        vDebugColor = Color.white;
+                        break;
+                    case 1: // LOD Medio (Res 16)
+                        vDebugColor = Color.blue;
+                        break;
+                    case 2: // LOD Bajo (Res 8)
+                        vDebugColor = Color.red;
+                        break;
+                    default:
+                        vDebugColor = Color.gray;
+                        break;
+                }
+
+                // 4. DIBUJO DE LA CAJA (Visualización constante)
+                // Usamos 0.6s para que no parpadee si el Delay es de 0.5s
+                vChunk.DrawDebug(vDebugColor, 0.6f);
+
+
+
+
+                // Forzamos el deseo sobre el chunk
+
+                if (vChunk.mTargetSize != vTargetRes)
                 {
                     vChunk.mTargetSize = vTargetRes;
-                    mDecimator.DispatchToRender(vChunk); //
+                    mDecimator.DispatchToRender(vChunk);
                 }
+                // --- LOG DE VERIFICACIÓN DE IDENTIDAD ---
+                // Si el mWorldOrigin no es el que debería ser, este log lo cantará.
+                //if (vChunk.mSize != vTargetRes)
+                //{
+                //    Debug.Log($"<color=white><b>[FRANKENSTEIN-DATA]</b></color> " +
+                //              $"ID:{i} | Coord:{vChunk.mCoord} | " +
+                //              $"Origin:{vOriginOriginal} | Size:{vSizeOriginal} | " +
+                //              $"DistSq:{vDistSq:F0} -> Target:{vTargetRes}");
+                //}
+
+                // Mandamos a renderizar la caja de test
+
             }
 
-            try { await Task.Delay(200, pToken); }
+            try { await Task.Delay(500, pToken); }
             catch { break; }
         }
     }

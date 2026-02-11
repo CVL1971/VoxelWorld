@@ -38,7 +38,7 @@ public class FPSCamera : MonoBehaviour
 
     void Start()
     {
-        LoadView();
+        //LoadView();
         EnterNavigationMode();
 
         if (mWorld == null)

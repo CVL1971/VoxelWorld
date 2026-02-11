@@ -140,4 +140,37 @@ public static class SDFGenerator
         float dZ = GetRawDistance(new Vector3(worldPos.x, worldPos.y, worldPos.z + h)) - GetRawDistance(new Vector3(worldPos.x, worldPos.y, worldPos.z - h));
         return new Vector3(dX, dY, dZ).normalized;
     }
+
+    public static void ResampleData(Chunk pChunk)
+    {
+        int res = pChunk.mSize; // Resolución actual (8, 16 o 32)
+        Vector3Int origin = pChunk.mWorldOrigin;
+
+        // Calculamos el paso (step) necesario para cubrir 32 unidades físicas
+        // Si res es 32, step es 1.0. Si res es 8, step es 4.0.
+        float step = (float)VoxelUtils.UNIVERSAL_CHUNK_SIZE / res;
+
+        for (int z = 0; z < res; z++)
+        {
+            for (int y = 0; y < res; y++)
+            {
+                for (int x = 0; x < res; x++)
+                {
+                    // Calculamos la posición real en el mundo usando el paso
+                    Vector3 worldPos = new Vector3(
+                        origin.x + (x * step),
+                        origin.y + (y * step),
+                        origin.z + (z * step)
+                    );
+
+                    // Usamos tu generador original para obtener la densidad
+                    float density = SDFGenerator.Sample(worldPos);
+
+                    // Inyectamos los datos en el nuevo array del chunk
+                    pChunk.SetDensity(x, y, z, density);
+                    pChunk.SetSolid(x, y, z, (byte)(density >= 0.5f ? 1 : 0));
+                }
+            }
+        }
+    }
 }

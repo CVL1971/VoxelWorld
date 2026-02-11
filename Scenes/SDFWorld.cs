@@ -1,16 +1,20 @@
-//UNA NUEVA MODIFICACION
-
 using UnityEngine;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Threading.Tasks;
+using System.Threading;
 
 public class World : MonoBehaviour
 {
- 
-   int mChunkSize = 32;
+
+    int mChunkSize = VoxelUtils.UNIVERSAL_CHUNK_SIZE;
 
     [Header("Rendering")]
     [SerializeField] Material mSolidMaterial;
+
+
+    [Header("PlayerPosition")]
+    [SerializeField] Camera mCamera;
 
     [SerializeField]
     Material mSurfaceMaterial;
@@ -23,7 +27,12 @@ public class World : MonoBehaviour
     MeshGenerator mMeshGenerator;
     SurfaceNetsGenerator mSurfaceNet = new SurfaceNetsGenerator();
     SurfaceNetsGeneratorQEF mSurfaceNetQEF = new SurfaceNetsGeneratorQEF();
-  
+    private CancellationTokenSource mCTS;
+
+    // Los nuevos motores de LOD
+    private Vigilante mVigilante;
+    private DecimationManager mDecimator;
+
 
     void Start()
     {
@@ -32,7 +41,7 @@ public class World : MonoBehaviour
         sw = Stopwatch.StartNew();
 
         mRenderQueue = new RenderQueue();
-        mGridInChunks = new Vector3Int(16, 16, 16); ;
+        mGridInChunks = new Vector3Int(8, 8, 8);
         mGridInUnits = mGridInChunks * mChunkSize;
         mGrid = new Grid(mGridInChunks, mChunkSize);
         mGrid.ReadFromSDFGenerator();
@@ -47,6 +56,25 @@ public class World : MonoBehaviour
 
         sw.Stop();
         UnityEngine.Debug.Log($"[SurfaceNets] MESH BUILDER: {sw.Elapsed.TotalMilliseconds:F3} ms");
+
+        // 2. Inicializar el Decimator (Cerebro)
+        mDecimator = new DecimationManager();
+        mDecimator.Setup(mRenderQueue, mSurfaceNetQEF);
+
+        // 3. Inicializar el Vigilante (Ojos)
+        mVigilante = new Vigilante();
+        mVigilante.Setup(mGrid, mDecimator); // O el transform del Player
+
+        // 4. ¡ARRANQUE DEL HILO!
+        // No usamos 'await' aquí para que no bloquee el Start de Unity.
+        // Simplemente lanzamos la tarea al aire.
+
+        //Task.Run(delegate { return mVigilante.Run(); });
+        mCTS = new CancellationTokenSource();
+
+        // INVOCACIÓN CORRECTA:
+        // Le pasamos el mCTS.Token para que el Vigilante sepa cuándo morir
+        Task.Run(() => mVigilante.Run(mCTS.Token), mCTS.Token);
     }
 
     public void ExecuteModification(Vector3 pHitPoint, Vector3 pHitNormal, byte pNewValue)
@@ -74,10 +102,14 @@ public class World : MonoBehaviour
 
     void Update()
     {
-
-       // NO metas esto dentro de un if(generando). 
-    // Debe estar siempre activo para "escuchar" cuando los hilos terminen.
-    for(int i = 0; i < 8; i++) // Probemos con 8 para ir más rápido
+        // Alimentamos la sonda con la posición actual de forma segura
+        if (mVigilante != null && mCamera != null)
+        {
+            mVigilante.vCurrentCamPos = mCamera.transform.position;
+        }
+        // NO metas esto dentro de un if(generando). 
+        // Debe estar siempre activo para "escuchar" cuando los hilos terminen.
+        for (int i = 0; i < 8; i++) // Probemos con 8 para ir más rápido
     {
         if (mRenderQueue.mResults.TryDequeue(out var vResult))
         {
@@ -167,6 +199,15 @@ public class World : MonoBehaviour
         // 2. DISPARAMOS LA PARALELIZACIÓN
         UnityEngine.Debug.Log("Iniciando generación paralela... Preparate para el error.");
         mRenderQueue.ProcessParallel();
+    }
+
+    void OnDisable()
+    {
+        if (mCTS != null)
+        {
+            mCTS.Cancel(); // Corta el flujo
+            mCTS.Dispose(); // Libera el objeto de la memoria
+        }
     }
 
 }

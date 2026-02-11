@@ -10,6 +10,8 @@ public sealed class Chunk
     public readonly Vector3Int mCoord;
     public int mSize;
     public readonly Vector3Int mWorldOrigin;
+    // El "deseo" del Vigía
+    public int mTargetSize = 0;
 
     // =========================
     // Datos voxel

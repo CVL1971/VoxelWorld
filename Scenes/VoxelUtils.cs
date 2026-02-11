@@ -3,6 +3,9 @@ using System.Collections.Generic;
 
 public static class VoxelUtils
 {
+    public const int UNIVERSAL_CHUNK_SIZE = 32;
+
+
     /// <summary>
     /// Estructura para transportar la información de ubicación de un voxel.
     /// </summary>
@@ -150,6 +153,46 @@ public static class VoxelUtils
 
         return new List<int>(indices);
     }
+
+    // [0] Resolución | [1] Paso | [2] DistanciaSq | [3] LOD_Index
+    public static readonly float[] LOD_DATA =
+    {
+        32f, 1.0f, 2304f,   0f, // Bloque 0
+        16f, 2.0f, 16384f,  1f, // Bloque 4
+        8f,  4.0f, 1000000f, 2f  // Bloque 8
+    };
+
+    // --- LAS CUATRO LLAVES DEL MINISTERIO ---
+
+    /// <summary> La brújula del Vigilante: dame distancia, te doy el bloque. </summary>
+    public static int GetInfoDist(float pDistSq)
+    {
+        if (pDistSq < LOD_DATA[2]) return 0;
+        if (pDistSq < LOD_DATA[6]) return 4;
+        return 8;
+    }
+
+    /// <summary> El espejo del Generador: dame resolución (p.ej. 16), te doy el bloque. </summary>
+    public static int GetInfoRes(int pRes)
+    {
+        if (pRes == (int)LOD_DATA[0]) return 0;
+        if (pRes == (int)LOD_DATA[4]) return 4;
+        return 8;
+    }
+
+    /// <summary> El ancla del Mundo: dame el tamaño físico (p.ej. 32), te doy el bloque correspondiente. </summary>
+    public static int GetInfoSize(int pSize)
+    {
+        // Buscamos en la columna de resolución [0, 4, 8] qué bloque coincide con el tamaño físico
+        if (pSize == (int)LOD_DATA[0]) return 0;
+        if (pSize == (int)LOD_DATA[4]) return 4;
+        return 8;
+    }
+
+    /// <summary> La simetría pura: dame el índice de LOD (0,1,2), te doy el bloque. </summary>
+    public static int GetInfoLod(int pLod) => pLod * 4;
+
+    // ----------------------------------------
 
 
 }

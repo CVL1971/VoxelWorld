@@ -1,50 +1,34 @@
-//using UnityEngine;
-//using System.Collections.Generic;
+using UnityEngine;
 
-//public class DecimationManager
-//{
-//    private float[] mLodDistances;
-//    private float mUpdateInterval;
-//    private float mTimeSinceLastUpdate;
+public class DecimationManager
+{
+    private RenderQueue mRenderQueue;
+    private MeshGenerator mGenerator;
 
-//    public DecimationManager(float pDist0, float pDist1, float pDist2, float pInterval)
-//    {
-//        mLodDistances = new float[] { pDist0, pDist1, pDist2 };
-//        mUpdateInterval = pInterval;
-//        mTimeSinceLastUpdate = 0.0f;
-//    }
+    public void Setup(RenderQueue pQueue, MeshGenerator pGenerator)
+    {
+        mRenderQueue = pQueue;
+        mGenerator = pGenerator;
+    }
 
-//    // Este método se llamaría desde World.Update()
-//    public void RunDecimationTick(float pDeltaTime, Vector3 pCameraPos, List<Chunk> pActiveChunks)
-//    {
-//        mTimeSinceLastUpdate += pDeltaTime;
+    /// <summary>
+    /// Determina la resolución basándose en la distancia al observador,
+    /// consultando los valores maestros de VoxelUtils.
+    /// </summary>
+    public int DetermineResolutionTier(float pDistSq)
+    {
+        // 1. Obtenemos el bloque de datos (offset) según la distancia
+        int infoBlock = VoxelUtils.GetInfoDist(pDistSq);
 
-//        if (mTimeSinceLastUpdate >= mUpdateInterval)
-//        {
-//            // Cacheamos los cuadrados de las distancias para el bucle
-//            float vDist0Sq = mLodDistances[0] * mLodDistances[0];
-//            float vDist1Sq = mLodDistances[1] * mLodDistances[1];
-//            float vDist2Sq = mLodDistances[2] * mLodDistances[2];
+        // 2. Extraemos la resolución definida en el primer índice de dicho bloque
+        // [0] es Resolución, [4] es Resolución LOD1, [8] es Resolución LOD2
+        return (int)VoxelUtils.LOD_DATA[infoBlock];
+    }
 
-//            for (int vI = 0; vI < pActiveChunks.Count; vI++)
-//            {
-//                Chunk vCurrentChunk = pActiveChunks[vI];
-
-//                // Cálculo de distancia cuadrada (rápido)
-//                float vSqDist = (pCameraPos - vCurrentChunk.Position).sqrMagnitude;
-
-//                int vTargetLOD = 3;
-//                if (vSqDist < vDist0Sq) vTargetLOD = 0;
-//                else if (vSqDist < vDist1Sq) vTargetLOD = 1;
-//                else if (vSqDist < vDist2Sq) vTargetLOD = 2;
-
-//                if (vCurrentChunk.CurrentLOD != vTargetLOD)
-//                {
-//                    vCurrentChunk.UpdateLOD(vTargetLOD);
-//                }
-//            }
-
-//            mTimeSinceLastUpdate = 0.0f;
-//        }
-//    }
-//}
+    public void DispatchToRender(Chunk pChunk)
+    {
+        // Filtros futuros (frustum culling, etc.) se implementarán aquí.
+        // Actualmente, envío directo a la cola de procesamiento.
+        mRenderQueue.Enqueue(pChunk, mGenerator);
+    }
+}

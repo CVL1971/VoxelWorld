@@ -35,17 +35,39 @@ public class RenderQueue
 
     public void ProcessParallel()
     {
-        Parallel.ForEach(mQueue, vRequest =>
+        // Usamos el delegado explícito para evitar azúcar sintáctico
+        Parallel.ForEach(mQueue, delegate (RenderRequest vRequest)
         {
+            Chunk vChunk = vRequest.chunk;
+
+            // --- GESTIÓN DE RESOLUCIÓN (LOD) ---
+            // Si hay una orden pendiente (marcada por el Vigía o Decimator)
+            if (vChunk.mTargetSize > 0)
+            {
+                // Ejecutamos la redimensión usando tu función específica
+                vChunk.Redim(vChunk.mTargetSize);
+
+                // Consumimos la orden
+                vChunk.mTargetSize = 0;
+
+                // Por ahora, el ResampleData se queda pendiente para la fase 2
+                // vRequest.generator.ResampleData(vChunk); 
+            }
+
+            // --- GENERACIÓN DE MALLA (Tu lógica original) ---
             MeshData vData = vRequest.generator.Generate(
-                vRequest.chunk,
+                vChunk,
                 mGrid.mChunks,
                 mGrid.mSizeInChunks
             );
-            mResults.Enqueue(new KeyValuePair<Chunk, MeshData>(vRequest.chunk, vData));
+
+            KeyValuePair<Chunk, MeshData> vResultado = new KeyValuePair<Chunk, MeshData>(vChunk, vData);
+            mResults.Enqueue(vResultado);
         });
 
-        while (mQueue.TryDequeue(out _)) ;
+        // Limpieza manual de la cola
+        RenderRequest vTrash;
+        while (mQueue.TryDequeue(out vTrash)) { }
         mInWait.Clear();
     }
 

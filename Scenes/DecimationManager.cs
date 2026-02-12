@@ -40,10 +40,10 @@ using UnityEngine;
 
 public class DecimationManager
 {
-    private RenderQueue mRenderQueue;
+    private RenderQueueMonohilo mRenderQueue;
     private MeshGenerator mGenerator;
 
-    public void Setup(RenderQueue pQueue, MeshGenerator pGenerator)
+    public void Setup(RenderQueueMonohilo pQueue, MeshGenerator pGenerator)
     {
         mRenderQueue = pQueue;
         mGenerator = pGenerator;

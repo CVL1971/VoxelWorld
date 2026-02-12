@@ -22,7 +22,7 @@ public class World : MonoBehaviour
     Vector3Int mGridInUnits;
     Vector3Int mGridInChunks;
     Mesh mWorldMesh;
-    RenderQueue mRenderQueue;
+    RenderQueueMonohilo mRenderQueue;
 
     MeshGenerator mMeshGenerator;
     SurfaceNetsGenerator mSurfaceNet = new SurfaceNetsGenerator();
@@ -45,7 +45,7 @@ public class World : MonoBehaviour
         Stopwatch sw = null;
         sw = Stopwatch.StartNew();
 
-        mRenderQueue = new RenderQueue();
+        mRenderQueue = new RenderQueueMonohilo();
         mGridInChunks = new Vector3Int(8, 4, 8);
         mGridInUnits = mGridInChunks * mChunkSize;
         mGrid = new Grid(mGridInChunks, mChunkSize);
@@ -105,7 +105,8 @@ public class World : MonoBehaviour
             }
         }
 
-        mRenderQueue.ProcessParallel();
+        //mRenderQueue.ProcessParallel();
+        mRenderQueue.ProcessSequential();
     }
 
     void Update()
@@ -231,7 +232,8 @@ public class World : MonoBehaviour
 
         // 2. DISPARAMOS LA PARALELIZACIÓN
         UnityEngine.Debug.Log("Iniciando generación paralela... Preparate para el error.");
-        mRenderQueue.ProcessParallel();
+        //mRenderQueue.ProcessParallel();
+        mRenderQueue.ProcessSequential();
     }
 
     void OnDisable()

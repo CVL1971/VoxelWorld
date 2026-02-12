@@ -45,21 +45,37 @@ public static class VoxelUtils
     // SOBRECARGAS PARA GENERADORES (ÚNICO PUNTO DE ACCESO)
     // ==========================================================
 
-    public static float GetDensityGlobal(Chunk currentChunk, Chunk[] allChunks, Vector3Int worldSize, int x, int y, int z)
+    public static float GetDensityGlobal(Chunk currentChunk, Chunk[] allChunks, Vector3Int worldSize, float x, float y, float z)
     {
-        int size = currentChunk.mSize;
-        int gx = currentChunk.mWorldOrigin.x + x;
-        int gy = currentChunk.mWorldOrigin.y + y;
-        int gz = currentChunk.mWorldOrigin.z + z;
+        float gx = currentChunk.mWorldOrigin.x + x;
+        float gy = currentChunk.mWorldOrigin.y + y;
+        float gz = currentChunk.mWorldOrigin.z + z;
 
-        int cx = gx / size;
-        int cy = gy / size;
-        int cz = gz / size;
+        int cx = Mathf.FloorToInt(gx / UNIVERSAL_CHUNK_SIZE);
+        int cy = Mathf.FloorToInt(gy / UNIVERSAL_CHUNK_SIZE);
+        int cz = Mathf.FloorToInt(gz / UNIVERSAL_CHUNK_SIZE);
 
         if (!IsInBounds(cx, cy, cz, worldSize)) return 0.0f;
 
         Chunk target = allChunks[GetChunkIndex(cx, cy, cz, worldSize)];
-        return target.DensityAt(gx - target.mWorldOrigin.x, gy - target.mWorldOrigin.y, gz - target.mWorldOrigin.z);
+        if (target == null) return 0.0f;
+
+        // Usamos mSize para asegurar coherencia con el array de datos actual (mVoxels)
+        int targetRes = target.mSize <= 0 ? UNIVERSAL_CHUNK_SIZE : target.mSize;
+
+        int lodIdx = GetInfoRes(targetRes);
+        float targetStep = LOD_DATA[lodIdx + 1];
+
+        float localX = gx - target.mWorldOrigin.x;
+        float localY = gy - target.mWorldOrigin.y;
+        float localZ = gz - target.mWorldOrigin.z;
+
+        int idxX = Mathf.Clamp(Mathf.RoundToInt(localX / targetStep), 0, targetRes - 1);
+        int idxY = Mathf.Clamp(Mathf.RoundToInt(localY / targetStep), 0, targetRes - 1);
+        int idxZ = Mathf.Clamp(Mathf.RoundToInt(localZ / targetStep), 0, targetRes - 1);
+
+        // Llamamos a DensityAt que accede correctamente a mVoxels[index].density
+        return target.DensityAt(idxX, idxY, idxZ);
     }
 
     public static int GetChunkIndex(int cx, int cy, int cz, Vector3Int worldChunkSize)
@@ -67,21 +83,35 @@ public static class VoxelUtils
         return cx + worldChunkSize.x * (cy + worldChunkSize.y * cz);
     }
 
-    public static bool IsSolidGlobal(Chunk currentChunk, Chunk[] allChunks, Vector3Int worldSize, int x, int y, int z)
+    public static bool IsSolidGlobal(Chunk currentChunk, Chunk[] allChunks, Vector3Int worldSize, float x, float y, float z)
     {
-        int size = currentChunk.mSize;
-        int gx = currentChunk.mWorldOrigin.x + x;
-        int gy = currentChunk.mWorldOrigin.y + y;
-        int gz = currentChunk.mWorldOrigin.z + z;
+        float gx = currentChunk.mWorldOrigin.x + x;
+        float gy = currentChunk.mWorldOrigin.y + y;
+        float gz = currentChunk.mWorldOrigin.z + z;
 
-        int cx = gx / size;
-        int cy = gy / size;
-        int cz = gz / size;
+        int cx = Mathf.FloorToInt(gx / UNIVERSAL_CHUNK_SIZE);
+        int cy = Mathf.FloorToInt(gy / UNIVERSAL_CHUNK_SIZE);
+        int cz = Mathf.FloorToInt(gz / UNIVERSAL_CHUNK_SIZE);
 
         if (!IsInBounds(cx, cy, cz, worldSize)) return false;
 
         Chunk target = allChunks[GetChunkIndex(cx, cy, cz, worldSize)];
-        return target.SafeIsSolid(gx - target.mWorldOrigin.x, gy - target.mWorldOrigin.y, gz - target.mWorldOrigin.z);
+        if (target == null) return false;
+
+        int targetRes = target.mSize <= 0 ? UNIVERSAL_CHUNK_SIZE : target.mSize;
+
+        int lodIdx = GetInfoRes(targetRes);
+        float targetStep = LOD_DATA[lodIdx + 1];
+
+        float localX = gx - target.mWorldOrigin.x;
+        float localY = gy - target.mWorldOrigin.y;
+        float localZ = gz - target.mWorldOrigin.z;
+
+        int idxX = Mathf.Clamp(Mathf.RoundToInt(localX / targetStep), 0, targetRes - 1);
+        int idxY = Mathf.Clamp(Mathf.RoundToInt(localY / targetStep), 0, targetRes - 1);
+        int idxZ = Mathf.Clamp(Mathf.RoundToInt(localZ / targetStep), 0, targetRes - 1);
+
+        return target.SafeIsSolid(idxX, idxY, idxZ);
     }
 
     public static bool IsInBounds(int cx, int cy, int cz, Vector3Int worldChunkSize)
@@ -153,24 +183,15 @@ public static class VoxelUtils
 
         return new List<int>(indices);
     }
+
     // [0] Resolución | [1] Paso | [2] DistanciaSq | [3] LOD_Index
     public static readonly float[] LOD_DATA =
     {
-    // LOD 0: Blanco. Hasta 96 metros (3 chunks de distancia)
-    // 96 * 96 = 9216
-    32f, 1.0f, 9216f,   0f, 
+        32f, 1.0f, 9216f,   0f,
+        16f, 2.0f, 65536f,  1f,
+        8f,  4.0f, 1000000f, 2f
+    };
 
-    // LOD 1: Azul. Hasta 256 metros (8 chunks de distancia)
-    // 256 * 256 = 65536
-    16f, 2.0f, 65536f,  1f, 
-
-    // LOD 2: Rojo. A partir de 256 metros hasta el infinito
-    8f,  4.0f, 1000000f, 2f
-};
-
-    // --- LAS CUATRO LLAVES DEL MINISTERIO ---
-
-    /// <summary> La brújula del Vigilante: dame distancia, te doy el bloque. </summary>
     public static int GetInfoDist(float pDistSq)
     {
         if (pDistSq < LOD_DATA[2]) return 0;
@@ -178,7 +199,6 @@ public static class VoxelUtils
         return 8;
     }
 
-    /// <summary> El espejo del Generador: dame resolución (p.ej. 16), te doy el bloque. </summary>
     public static int GetInfoRes(int pRes)
     {
         if (pRes == (int)LOD_DATA[0]) return 0;
@@ -186,42 +206,23 @@ public static class VoxelUtils
         return 8;
     }
 
-    /// <summary> El ancla del Mundo: dame el tamaño físico (p.ej. 32), te doy el bloque correspondiente. </summary>
     public static int GetInfoSize(int pSize)
     {
-        // Buscamos en la columna de resolución [0, 4, 8] qué bloque coincide con el tamaño físico
         if (pSize == (int)LOD_DATA[0]) return 0;
         if (pSize == (int)LOD_DATA[4]) return 4;
         return 8;
     }
 
-    /// <summary> La simetría pura: dame el índice de LOD (0,1,2), te doy el bloque. </summary>
     public static int GetInfoLod(int pLod) => pLod * 4;
-
-    // ----------------------------------------
-
-    
 
     public static Vector3 GetChunkCenter(Vector3 pOriginOriginal, float pSizeOriginal)
     {
         float vHalf = pSizeOriginal * 0.5f;
-        return new Vector3(
-            pOriginOriginal.x + vHalf,
-            pOriginOriginal.y + vHalf,
-            pOriginOriginal.z + vHalf
-        );
+        return new Vector3(pOriginOriginal.x + vHalf, pOriginOriginal.y + vHalf, pOriginOriginal.z + vHalf);
     }
 
     public static Vector3 GetGridCenter(Vector3Int pGridInChunks, int pChunkSize)
     {
-        return new Vector3(
-            (pGridInChunks.x * pChunkSize) * 0.5f,
-            (pGridInChunks.y * pChunkSize) * 0.5f,
-            (pGridInChunks.z * pChunkSize) * 0.5f
-        );
+        return new Vector3((pGridInChunks.x * pChunkSize) * 0.5f, (pGridInChunks.y * pChunkSize) * 0.5f, (pGridInChunks.z * pChunkSize) * 0.5f);
     }
-
-
 }
-
-

@@ -49,11 +49,11 @@ public class DecimationManager
         mGenerator = pGenerator;
     }
 
-    public int DetermineResolutionTier(float pDistSq)
-    {
-        int infoBlock = VoxelUtils.GetInfoDist(pDistSq);
-        return (int)VoxelUtils.LOD_DATA[infoBlock];
-    }
+    //public int DetermineResolutionTier(float pDistSq)
+    //{
+    //    int infoBlock = VoxelUtils.GetInfoDist(pDistSq);
+    //    return (int)VoxelUtils.LOD_DATA[infoBlock];
+    //}
 
     /// <summary>
     /// COMPORTAMIENTO DE TEST: Suspendemos RenderQueue y Pool.
@@ -87,8 +87,6 @@ public class DecimationManager
         // 2. Dibujamos la caja en el mundo. 
         // Usamos una duración de 0.5s para que persista entre ciclos del Vigilante (200ms)
         pChunk.DrawDebug(vDebugColor, 0.5f);
-
-
-        //mRenderQueue.Enqueue(pChunk, mGenerator);
+        mRenderQueue.Enqueue(pChunk, mGenerator);
     }
 }

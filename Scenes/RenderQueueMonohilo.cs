@@ -36,6 +36,8 @@ public class RenderQueueMonohilo
 
             }
 
+            SDFGenerator.Sample(vChunk);
+
             // --- GENERACIÓN DE MALLA ---
             MeshData vData = vRequest.generator.Generate(
                 vChunk,
@@ -44,8 +46,9 @@ public class RenderQueueMonohilo
             );
 
             // Consumimos la orden
+            //vChunk.mSize = vChunk.mTargetSize; 
             vChunk.mTargetSize = 0;
-
+          
             KeyValuePair<Chunk, MeshData> vResultado = new KeyValuePair<Chunk, MeshData>(vChunk, vData);
             mResults.Enqueue(vResultado);
         }

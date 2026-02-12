@@ -13,20 +13,48 @@ public static class SDFGenerator
 
     public static void Sample(Chunk pChunk)
     {
-        int size = pChunk.mSize;
+        // Determinamos la resolución a utilizar
+        int res = pChunk.mSize;
+
+        // Si hay un cambio de resolución pendiente, mandan los datos nuevos
+        if (pChunk.mTargetSize > 0)
+        {
+            res = pChunk.mTargetSize;
+        }
+
         Vector3Int origin = pChunk.mWorldOrigin;
 
-        for (int z = 0; z < size; z++)
+        // Calculamos el paso físico (metros por cada índice)
+        // Siempre basado en el tamaño físico universal de 32 metros
+        float vStep = (float)VoxelUtils.UNIVERSAL_CHUNK_SIZE / (float)res;
+
+        for (int z = 0; z < res; z++)
         {
-            for (int x = 0; x < size; x++)
+            for (int y = 0; y < res; y++)
             {
-                for (int y = 0; y < size; y++)
+                for (int x = 0; x < res; x++)
                 {
-                    Vector3 worldPos = new Vector3(origin.x + x, origin.y + y, origin.z + z);
+                    // Calculamos la posición real en el mundo (en metros)
+                    float worldX = (float)origin.x + ((float)x * vStep);
+                    float worldY = (float)origin.y + ((float)y * vStep);
+                    float worldZ = (float)origin.z + ((float)z * vStep);
+
+                    Vector3 worldPos = new Vector3(worldX, worldY, worldZ);
+
+                    // Muestreamos la función matemática
                     float density = Sample(worldPos);
 
+                    // Guardamos los datos en el chunk
                     pChunk.SetDensity(x, y, z, density);
-                    pChunk.SetSolid(x, y, z, (byte)(density >= ISO_SURFACE ? 1 : 0));
+
+                    if (density >= ISO_SURFACE)
+                    {
+                        pChunk.SetSolid(x, y, z, 1);
+                    }
+                    else
+                    {
+                        pChunk.SetSolid(x, y, z, 0);
+                    }
                 }
             }
         }
@@ -141,36 +169,36 @@ public static class SDFGenerator
         return new Vector3(dX, dY, dZ).normalized;
     }
 
-    public static void ResampleData(Chunk pChunk)
-    {
-        int res = pChunk.mSize; // Resolución actual (8, 16 o 32)
-        Vector3Int origin = pChunk.mWorldOrigin;
+    //public static void ResampleData(Chunk pChunk)
+    //{
+    //    int res = pChunk.mSize; // Resolución actual (8, 16 o 32)
+    //    Vector3Int origin = pChunk.mWorldOrigin;
 
-        // Calculamos el paso (step) necesario para cubrir 32 unidades físicas
-        // Si res es 32, step es 1.0. Si res es 8, step es 4.0.
-        float step = (float)VoxelUtils.UNIVERSAL_CHUNK_SIZE / res;
+    //    // Calculamos el paso (step) necesario para cubrir 32 unidades físicas
+    //    // Si res es 32, step es 1.0. Si res es 8, step es 4.0.
+    //    float step = (float)VoxelUtils.UNIVERSAL_CHUNK_SIZE / res;
 
-        for (int z = 0; z < res; z++)
-        {
-            for (int y = 0; y < res; y++)
-            {
-                for (int x = 0; x < res; x++)
-                {
-                    // Calculamos la posición real en el mundo usando el paso
-                    Vector3 worldPos = new Vector3(
-                        origin.x + (x * step),
-                        origin.y + (y * step),
-                        origin.z + (z * step)
-                    );
+    //    for (int z = 0; z < res; z++)
+    //    {
+    //        for (int y = 0; y < res; y++)
+    //        {
+    //            for (int x = 0; x < res; x++)
+    //            {
+    //                // Calculamos la posición real en el mundo usando el paso
+    //                Vector3 worldPos = new Vector3(
+    //                    origin.x + (x * step),
+    //                    origin.y + (y * step),
+    //                    origin.z + (z * step)
+    //                );
 
-                    // Usamos tu generador original para obtener la densidad
-                    float density = SDFGenerator.Sample(worldPos);
+    //                // Usamos tu generador original para obtener la densidad
+    //                float density = SDFGenerator.Sample(worldPos);
 
-                    // Inyectamos los datos en el nuevo array del chunk
-                    pChunk.SetDensity(x, y, z, density);
-                    pChunk.SetSolid(x, y, z, (byte)(density >= 0.5f ? 1 : 0));
-                }
-            }
-        }
-    }
+    //                // Inyectamos los datos en el nuevo array del chunk
+    //                pChunk.SetDensity(x, y, z, density);
+    //                pChunk.SetSolid(x, y, z, (byte)(density >= 0.5f ? 1 : 0));
+    //            }
+    //        }
+    //    }
+    //}
 }

@@ -357,9 +357,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 49f560111972c23448661046175aeb38, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::World
-  mSolidMaterial: {fileID: 2100000, guid: fe58b3f360a3acd49a02b638820c6494, type: 2}
+  mSolidMaterial: {fileID: 15303, guid: 0000000000000000f000000000000000, type: 0}
   mCamera: {fileID: 2142115475}
-  mSurfaceMaterial: {fileID: 2100000, guid: fe58b3f360a3acd49a02b638820c6494, type: 2}
+  mSurfaceMaterial: {fileID: 15303, guid: 0000000000000000f000000000000000, type: 0}
   mMinQueueToProcess: 10
   mMaxWaitTime: 1
 --- !u!114 &1581330784
@@ -498,7 +498,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 275de0c56fce77c41bca03f186c31545, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::FPSCamera
-  mMoveSpeed: 10
+  mMoveSpeed: 40
   mFastMultiplier: 3
   mMouseSensitivity: 3
   mMaxLookAngle: 85

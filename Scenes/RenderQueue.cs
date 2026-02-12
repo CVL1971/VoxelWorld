@@ -51,7 +51,7 @@ public class RenderQueue
                 vChunk.mTargetSize = 0;
 
                 // Por ahora, el ResampleData se queda pendiente para la fase 2
-                SDFGenerator.ResampleData(vChunk); 
+                //SDFGenerator.ResampleData(vChunk); 
             }
 
             // --- GENERACIÓN DE MALLA (Tu lógica original) ---

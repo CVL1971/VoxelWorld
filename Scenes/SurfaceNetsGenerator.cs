@@ -7,21 +7,29 @@ public class SurfaceNetsGenerator : MeshGenerator
 
     public override MeshData Generate(Chunk pChunk, Chunk[] allChunks, Vector3Int worldSize)
     {
-        int size = pChunk.mSize;
+        // 0. PARAMETRIZACIÓN DINÁMICA
+        // Si mTargetSize es 0, usamos UNIVERSAL_CHUNK_SIZE (LOD máximo)
+        int size = pChunk.mTargetSize <= 0 ? VoxelUtils.UNIVERSAL_CHUNK_SIZE : pChunk.mTargetSize;
+
+        // Obtenemos el índice y el paso (vStep) de las tablas de LOD
+        int lodIndex = VoxelUtils.GetInfoRes(size);
+        float vStep = VoxelUtils.LOD_DATA[lodIndex + 1];
+
         MeshData meshData = new MeshData();
 
-        // 1. CACHÉ LOCAL (Indispensable para multihilo)
+        // 1. CACHÉ LOCAL (Dimensionada según la resolución actual)
         float[,,] localCache = new float[size + 2, size + 2, size + 2];
         for (int z = 0; z <= size + 1; z++)
             for (int y = 0; y <= size + 1; y++)
                 for (int x = 0; x <= size + 1; x++)
                 {
+                    // Muestreo: las coordenadas x,y,z son índices, GetDensityGlobal maneja la escala
                     localCache[x, y, z] = VoxelUtils.GetDensityGlobal(pChunk, allChunks, worldSize, x, y, z);
                 }
 
         int[,,] vmap = new int[size + 1, size + 1, size + 1];
 
-        // 2. GENERACIÓN DE VÉRTICES (Surface Nets Estándar)
+        // 2. GENERACIÓN DE VÉRTICES
         for (int z = 0; z <= size; z++)
             for (int y = 0; y <= size; y++)
                 for (int x = 0; x <= size; x++)
@@ -30,11 +38,11 @@ public class SurfaceNetsGenerator : MeshGenerator
                     {
                         vmap[x, y, z] = meshData.vertices.Count;
 
-                        // Posición promedio simple (característica de Surface Nets)
-                        Vector3 localPos = ComputeCellVertex(localCache, x, y, z, ISO_THRESHOLD);
+                        // Calculamos posición local multiplicada por vStep
+                        Vector3 localPos = ComputeCellVertex(localCache, x, y, z, ISO_THRESHOLD, vStep);
                         meshData.vertices.Add(localPos);
 
-                        // Cálculo de normal
+                        // Normal basada en posición de mundo real (escalada)
                         Vector3 worldPos = (Vector3)pChunk.mWorldOrigin + localPos;
                         meshData.normals.Add(SDFGenerator.CalculateNormal(worldPos));
                     }
@@ -52,18 +60,7 @@ public class SurfaceNetsGenerator : MeshGenerator
         return meshData;
     }
 
-    protected bool CellCrossesIso(float[,,] cache, int x, int y, int z, float iso)
-    {
-        bool first = cache[x, y, z] >= iso;
-        for (int i = 1; i < 8; i++)
-        {
-            float d = cache[x + (i & 1), y + ((i >> 1) & 1), z + ((i >> 2) & 1)];
-            if ((d >= iso) != first) return true;
-        }
-        return false;
-    }
-
-    protected Vector3 ComputeCellVertex(float[,,] cache, int x, int y, int z, float iso)
+    protected Vector3 ComputeCellVertex(float[,,] cache, int x, int y, int z, float iso, float vStep)
     {
         Vector3 sum = Vector3.zero;
         int count = 0;
@@ -75,7 +72,9 @@ public class SurfaceNetsGenerator : MeshGenerator
             if ((d0 < iso && d1 >= iso) || (d0 >= iso && d1 < iso))
             {
                 float t = Mathf.Clamp01((iso - d0) / (d1 - d0 + 0.00001f));
-                sum += Vector3.Lerp(new Vector3(x0, y0, z0), new Vector3(x1, y1, z1), t);
+                Vector3 p0 = new Vector3(x0, y0, z0) * vStep;
+                Vector3 p1 = new Vector3(x1, y1, z1) * vStep;
+                sum += Vector3.Lerp(p0, p1, t);
                 count++;
             }
         }
@@ -84,7 +83,18 @@ public class SurfaceNetsGenerator : MeshGenerator
         CheckEdge(x, y, z, x, y + 1, z); CheckEdge(x + 1, y, z, x + 1, y + 1, z); CheckEdge(x, y, z + 1, x, y + 1, z + 1); CheckEdge(x + 1, y, z + 1, x + 1, y + 1, z + 1);
         CheckEdge(x, y, z, x, y, z + 1); CheckEdge(x + 1, y, z, x + 1, y, z + 1); CheckEdge(x, y + 1, z, x, y + 1, z + 1); CheckEdge(x + 1, y + 1, z, x + 1, y + 1, z + 1);
 
-        return count > 0 ? sum / count : new Vector3(x + 0.5f, y + 0.5f, z + 0.5f);
+        return count > 0 ? sum / count : new Vector3(x + 0.5f, y + 0.5f, z + 0.5f) * vStep;
+    }
+
+    protected bool CellCrossesIso(float[,,] cache, int x, int y, int z, float iso)
+    {
+        bool first = cache[x, y, z] >= iso;
+        for (int i = 1; i < 8; i++)
+        {
+            float d = cache[x + (i & 1), y + ((i >> 1) & 1), z + ((i >> 2) & 1)];
+            if ((d >= iso) != first) return true;
+        }
+        return false;
     }
 
     protected void EmitCorrectFaces(float[,,] cache, int x, int y, int z, float iso, int[,,] vmap, List<int> tris, int size)

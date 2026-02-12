@@ -46,7 +46,7 @@ public class World : MonoBehaviour
         sw = Stopwatch.StartNew();
 
         mRenderQueue = new RenderQueue();
-        mGridInChunks = new Vector3Int(16, 16, 16);
+        mGridInChunks = new Vector3Int(8, 4, 8);
         mGridInUnits = mGridInChunks * mChunkSize;
         mGrid = new Grid(mGridInChunks, mChunkSize);
         mGrid.ReadFromSDFGenerator();
@@ -128,30 +128,30 @@ public class World : MonoBehaviour
             break; 
         }
 
-            int vQueueCount = mRenderQueue.mQueue.Count;
+            //int vQueueCount = mRenderQueue.mQueue.Count;
 
-            if (vQueueCount > 0)
-            {
-                mTimer += Time.deltaTime;
+            //if (vQueueCount > 0)
+            //{
+            //    mTimer += Time.deltaTime;
 
-                // POLÍTICA DE DISPARO:
-                // 1. Hemos superado el límite (ej. 10 chunks acumulados por el Vigilante)
-                // 2. O hemos esperado demasiado tiempo (para que el mundo no se quede estático)
-                // 3. O hay algo marcado como urgente (opcional, si añades un flag de urgencia)
+            //    // POLÍTICA DE DISPARO:
+            //    // 1. Hemos superado el límite (ej. 10 chunks acumulados por el Vigilante)
+            //    // 2. O hemos esperado demasiado tiempo (para que el mundo no se quede estático)
+            //    // 3. O hay algo marcado como urgente (opcional, si añades un flag de urgencia)
 
-                if (vQueueCount >= mMinQueueToProcess || mTimer >= mMaxWaitTime)
-                {
-                    // ¡A TRABAJAR!
-                    mRenderQueue.ProcessParallel();
+            //    if (vQueueCount >= mMinQueueToProcess || mTimer >= mMaxWaitTime)
+            //    {
+            //        // ¡A TRABAJAR!
+            //        mRenderQueue.ProcessParallel();
 
-                    // Reset de tiempo tras el procesado
-                    mTimer = 0f;
-                }
-            }
-            else
-            {
-                mTimer = 0f;
-            }
+            //        // Reset de tiempo tras el procesado
+            //        mTimer = 0f;
+            //    }
+            //}
+            //else
+            //{
+            //    mTimer = 0f;
+            //}
         }
 
 

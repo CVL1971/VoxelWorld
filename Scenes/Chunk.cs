@@ -12,6 +12,7 @@ public sealed class Chunk
     public readonly Vector3Int mWorldOrigin;
     // El "deseo" del Vigía
     public int mTargetSize = 0;
+    public bool mIsEdited = false;
 
     // =========================
     // Datos voxel

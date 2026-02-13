@@ -29,14 +29,15 @@ public class RenderQueueMonohilo
             Chunk vChunk = vRequest.chunk;
 
             // --- GESTIÓN DE RESOLUCIÓN (LOD) ---
-            if (vChunk.mTargetSize > 0)
+            if (vChunk.mTargetSize > 0 && !vChunk.mIsEdited)
             {
                 // Ejecutamos la redimensión
                 vChunk.Redim(vChunk.mTargetSize);
+                SDFGenerator.Sample(vChunk);
 
             }
 
-            SDFGenerator.Sample(vChunk);
+
 
             // --- GENERACIÓN DE MALLA ---
             MeshData vData = vRequest.generator.Generate(
@@ -100,4 +101,6 @@ public class RenderQueueMonohilo
             vMr.SetPropertyBlock(vPropBlock);
         }
     }
+
+  
 }

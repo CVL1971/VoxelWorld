@@ -70,12 +70,61 @@ public static class VoxelUtils
         float localY = gy - target.mWorldOrigin.y;
         float localZ = gz - target.mWorldOrigin.z;
 
-        int idxX = Mathf.Clamp(Mathf.RoundToInt(localX / targetStep), 0, targetRes - 1);
-        int idxY = Mathf.Clamp(Mathf.RoundToInt(localY / targetStep), 0, targetRes - 1);
-        int idxZ = Mathf.Clamp(Mathf.RoundToInt(localZ / targetStep), 0, targetRes - 1);
+        // Convertimos la posición continua a índices del grid del chunk vecino
+        float fx = localX / targetStep;
+        float fy = localY / targetStep;
+        float fz = localZ / targetStep;
 
-        // Llamamos a DensityAt que accede correctamente a mVoxels[index].density
-        return target.DensityAt(idxX, idxY, idxZ);
+        // Si estamos EXACTAMENTE en un vértice del grid, lo devolvemos directamente
+        int ix = Mathf.RoundToInt(fx);
+        int iy = Mathf.RoundToInt(fy);
+        int iz = Mathf.RoundToInt(fz);
+
+        // Tolerancia para considerar que estamos "en" un vértice
+        const float SNAP_THRESHOLD = 0.01f;
+
+        if (Mathf.Abs(fx - ix) < SNAP_THRESHOLD &&
+            Mathf.Abs(fy - iy) < SNAP_THRESHOLD &&
+            Mathf.Abs(fz - iz) < SNAP_THRESHOLD)
+        {
+            ix = Mathf.Clamp(ix, 0, targetRes - 1);
+            iy = Mathf.Clamp(iy, 0, targetRes - 1);
+            iz = Mathf.Clamp(iz, 0, targetRes - 1);
+            return target.DensityAt(ix, iy, iz);
+        }
+
+        // Si no, hacemos interpolación trilineal para suavizar la transición
+        int x0 = Mathf.Clamp(Mathf.FloorToInt(fx), 0, targetRes - 1);
+        int y0 = Mathf.Clamp(Mathf.FloorToInt(fy), 0, targetRes - 1);
+        int z0 = Mathf.Clamp(Mathf.FloorToInt(fz), 0, targetRes - 1);
+
+        int x1 = Mathf.Clamp(x0 + 1, 0, targetRes - 1);
+        int y1 = Mathf.Clamp(y0 + 1, 0, targetRes - 1);
+        int z1 = Mathf.Clamp(z0 + 1, 0, targetRes - 1);
+
+        float tx = fx - x0;
+        float ty = fy - y0;
+        float tz = fz - z0;
+
+        // Interpolación trilineal
+        float c000 = target.DensityAt(x0, y0, z0);
+        float c100 = target.DensityAt(x1, y0, z0);
+        float c010 = target.DensityAt(x0, y1, z0);
+        float c110 = target.DensityAt(x1, y1, z0);
+        float c001 = target.DensityAt(x0, y0, z1);
+        float c101 = target.DensityAt(x1, y0, z1);
+        float c011 = target.DensityAt(x0, y1, z1);
+        float c111 = target.DensityAt(x1, y1, z1);
+
+        float c00 = Mathf.Lerp(c000, c100, tx);
+        float c01 = Mathf.Lerp(c001, c101, tx);
+        float c10 = Mathf.Lerp(c010, c110, tx);
+        float c11 = Mathf.Lerp(c011, c111, tx);
+
+        float c0 = Mathf.Lerp(c00, c10, ty);
+        float c1 = Mathf.Lerp(c01, c11, ty);
+
+        return Mathf.Lerp(c0, c1, tz);
     }
 
     public static int GetChunkIndex(int cx, int cy, int cz, Vector3Int worldChunkSize)

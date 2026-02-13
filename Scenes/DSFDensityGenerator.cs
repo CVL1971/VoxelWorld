@@ -13,38 +13,34 @@ public static class SDFGenerator
 
     public static void Sample(Chunk pChunk)
     {
-        // Determinamos la resolución a utilizar
-        int res = pChunk.mSize;
-
-        // Si hay un cambio de resolución pendiente, mandan los datos nuevos
-        if (pChunk.mTargetSize > 0)
-        {
-            res = pChunk.mTargetSize;
-        }
+        // 1. Deducimos la resolución real a partir de la longitud del array
+        // mVoxels.Length es: res * res * res. La raíz cúbica nos da la resolución (8, 16 o 32)
+        int res = Mathf.RoundToInt(Mathf.Pow(pChunk.mVoxels.Length, 1f / 3f));
 
         Vector3Int origin = pChunk.mWorldOrigin;
 
-        // Calculamos el paso físico (metros por cada índice)
-        // Siempre basado en el tamaño físico universal de 32 metros
+        // 2. Calculamos el paso físico (vStep)
+        // Usamos UNIVERSAL_CHUNK_SIZE (32) porque es lo que mide el chunk en el mundo
         float vStep = (float)VoxelUtils.UNIVERSAL_CHUNK_SIZE / (float)res;
 
+        // 3. Los bucles ahora van de 0 a la resolución real detectada
+        // IMPORTANTE para las Seams: Para cerrar el borde con el vecino, 
+        // deberías considerar llegar a res + 1 si tu array lo permite. 
+        // Si no, lo dejamos en < res para evitar errores de índice.
         for (int z = 0; z < res; z++)
         {
             for (int y = 0; y < res; y++)
             {
                 for (int x = 0; x < res; x++)
                 {
-                    // Calculamos la posición real en el mundo (en metros)
+                    // La posición en el mundo escala según el paso
                     float worldX = (float)origin.x + ((float)x * vStep);
                     float worldY = (float)origin.y + ((float)y * vStep);
                     float worldZ = (float)origin.z + ((float)z * vStep);
 
-                    Vector3 worldPos = new Vector3(worldX, worldY, worldZ);
+                    float density = Sample(new Vector3(worldX, worldY, worldZ));
 
-                    // Muestreamos la función matemática
-                    float density = Sample(worldPos);
-
-                    // Guardamos los datos en el chunk
+                    // Guardamos usando los índices locales (0 a res-1)
                     pChunk.SetDensity(x, y, z, density);
 
                     if (density >= ISO_SURFACE)

@@ -99,6 +99,9 @@ public class Grid
                     int vCIdx = VoxelUtils.GetChunkIndex(vCx, vCy, vCz, mSizeInChunks);
                     Chunk vChunk = mChunks[vCIdx];
 
+                    // MARCADO DE EDICIÓN: El usuario ha tocado este chunk
+                    vChunk.mIsEdited = true;
+
                     // 4. Conversión a coordenadas locales del Chunk
                     int vLx = vx - (vCx * mChunkSize);
                     int vLy = vy - (vCy * mChunkSize);

@@ -11,6 +11,7 @@ public class World : MonoBehaviour
 
     [Header("Rendering")]
     [SerializeField] Material mSolidMaterial;
+    private float mDebugTimer = 0;
 
 
     [Header("PlayerPosition")]
@@ -36,7 +37,11 @@ public class World : MonoBehaviour
     [Header("Configuración de Carga")]
     [SerializeField] int mMinQueueToProcess = 10; // No disparamos núcleos por menos de 10 chunks de LOD
     [SerializeField] float mMaxWaitTime = 1.0f;   // Pero si pasa 1 segundo, procesamos lo que haya
+    [SerializeField] int mChunksPerFrame = 1;     // Cuántos chunks procesamos por frame (ajusta según rendimiento)
+    [SerializeField] float mMaxMillisecondsPerFrame = 16.0f; // Tiempo máximo de procesamiento por frame (16ms = 60fps)
     private float mTimer = 0f;
+    private bool mIsProcessing = false;           // Flag para saber si estamos procesando
+    private Queue<RenderRequest> mProcessingBuffer = new Queue<RenderRequest>(); // Cola temporal de procesamiento
 
 
     void Start()
@@ -46,13 +51,13 @@ public class World : MonoBehaviour
         sw = Stopwatch.StartNew();
 
         mRenderQueue = new RenderQueueMonohilo();
-        mGridInChunks = new Vector3Int(1, 1, 1);
+        mGridInChunks = new Vector3Int(8, 2, 8);
         mGridInUnits = mGridInChunks * mChunkSize;
         mGrid = new Grid(mGridInChunks, mChunkSize);
         mGrid.ReadFromSDFGenerator();
         mRenderQueue.Setup(mGrid);
-        
-   
+
+
         sw.Stop();
         UnityEngine.Debug.Log($"[SurfaceNets] TERRAIN SAMPLER: {sw.Elapsed.TotalMilliseconds:F3} ms");
         sw = Stopwatch.StartNew();
@@ -116,97 +121,103 @@ public class World : MonoBehaviour
         {
             mVigilante.vCurrentCamPos = mCamera.transform.position;
         }
-        // NO metas esto dentro de un if(generando). 
-        // Debe estar siempre activo para "escuchar" cuando los hilos terminen.
-        for (int i = 0; i < 8; i++) // Probemos con 8 para ir más rápido
-    {
-        if (mRenderQueue.mResults.TryDequeue(out var vResult))
-        {
-            mRenderQueue.Apply(vResult.Key, vResult.Value);
-        }
-        else 
-        {
-            break; 
-        }
 
-            int vQueueCount = mRenderQueue.mQueue.Count;
-
-            if (vQueueCount > 0)
+        // 1. APLICAR RESULTADOS (siempre rápido, solo aplicar mallas ya generadas)
+        // Aplicamos varios resultados por frame ya que es una operación ligera
+        for (int i = 0; i < 8; i++)
+        {
+            if (mRenderQueue.mResults.TryDequeue(out var vResult))
             {
-                mTimer += Time.deltaTime;
-
-                // POLÍTICA DE DISPARO:
-                // 1. Hemos superado el límite (ej. 10 chunks acumulados por el Vigilante)
-                // 2. O hemos esperado demasiado tiempo (para que el mundo no se quede estático)
-                // 3. O hay algo marcado como urgente (opcional, si añades un flag de urgencia)
-
-                if (vQueueCount >= mMinQueueToProcess || mTimer >= mMaxWaitTime)
-                {
-                    // ¡A TRABAJAR!
-                    mRenderQueue.ProcessSequential();
-
-                    // Reset de tiempo tras el procesado
-                    mTimer = 0f;
-                }
+                mRenderQueue.Apply(vResult.Key, vResult.Value);
             }
             else
             {
-                mTimer = 0f;
+                break;
             }
         }
 
+        // 2. GESTIÓN DE PROCESAMIENTO GRADUAL
+        int vQueueCount = mRenderQueue.mQueue.Count;
 
-        //if (mGrid == null) return;
+        // Si hay trabajo pendiente, incrementamos el timer
+        if (vQueueCount > 0)
+        {
+            mTimer += Time.deltaTime;
+        }
 
-        //// Usamos el out con el tipo de la estructura explícita
-        //if (mRenderQueue.TryDequeue(out RenderRequest vRequest))
-        //{
-        //    // Acceso directo a los nombres de la estructura
-        //    Chunk vChunk = vRequest.chunk;
-        //    MeshGenerator vGenerator = vRequest.generator;
+        // DECISIÓN: ¿Iniciamos el procesamiento?
+        if (!mIsProcessing && vQueueCount > 0)
+        {
+            // Condiciones para iniciar procesamiento:
+            // 1. Hay suficientes chunks acumulados
+            // 2. O ha pasado suficiente tiempo
+            if (vQueueCount >= mMinQueueToProcess || mTimer >= mMaxWaitTime)
+            {
+                // Transferimos la cola principal al buffer de procesamiento
+                while (mRenderQueue.mQueue.Count > 0)
+                {
+                    mProcessingBuffer.Enqueue(mRenderQueue.mQueue.Dequeue());
+                }
+                mRenderQueue.mInWait.Clear();
+                mIsProcessing = true;
+                mTimer = 0f;
 
-        //    if (vChunk.mViewGO == null)
-        //    {
-        //        string goName = $"SurfaceNet_Chunk_{vChunk.mCoord.x}_{vChunk.mCoord.y}_{vChunk.mCoord.z}";
+                UnityEngine.Debug.Log($"[World] Iniciando procesamiento de {mProcessingBuffer.Count} chunks de forma gradual");
+            }
+        }
 
-        //        // Creamos el objeto solo si no existe en la referencia del Chunk
-        //        vChunk.mViewGO = new GameObject(goName, typeof(MeshFilter), typeof(MeshRenderer), typeof(MeshCollider));
-        //        vChunk.mViewGO.transform.parent = mGrid.mWorldRoot.transform;
+        // 3. PROCESAMIENTO GRADUAL (distribuido en el tiempo)
+        if (mIsProcessing && mProcessingBuffer.Count > 0)
+        {
+            Stopwatch sw = Stopwatch.StartNew();
+            int chunksProcessed = 0;
 
-        //        // chunk.mViewGO.transform.position = Vector3.zero;
+            // Procesamos chunks hasta alcanzar el límite de tiempo o chunks por frame
+            while (mProcessingBuffer.Count > 0 &&
+                   chunksProcessed < mChunksPerFrame &&
+                   sw.Elapsed.TotalMilliseconds < mMaxMillisecondsPerFrame)
+            {
+                RenderRequest vRequest = mProcessingBuffer.Dequeue();
+                Chunk vChunk = vRequest.chunk;
 
-        //        // LA POSICIÓN DEL OBJETO es la única que debe tener el mWorldOrigin
-        //        vChunk.mViewGO.transform.position = (Vector3)vChunk.mWorldOrigin;
-        //        //renderer.material = mSurfaceMaterial;
+                // --- GESTIÓN DE RESOLUCIÓN (LOD) ---
+                if (vChunk.mTargetSize > 0 && !vChunk.mIsEdited)
+                {
+                    vChunk.Redim(vChunk.mTargetSize);
+                    SDFGenerator.Sample(vChunk);
+                }
 
-        //        MeshRenderer vMr = vChunk.mViewGO.GetComponent<MeshRenderer>();
-        //        if (vMr != null)
-        //        {
-        //            vMr.sharedMaterial = mSurfaceMaterial;
+                // --- GENERACIÓN DE MALLA ---
+                MeshData vData = vRequest.generator.Generate(
+                    vChunk,
+                    mGrid.mChunks,
+                    mGrid.mSizeInChunks
+                );
 
-        //            // 2. Creamos y configuramos el bloque de propiedades
-        //            MaterialPropertyBlock vPropBlock = new MaterialPropertyBlock();
-        //            vMr.GetPropertyBlock(vPropBlock); // Obtenemos lo que ya tenga para no sobreescribir otros datos
+                // Consumimos la orden
+                vChunk.mTargetSize = 0;
 
-        //            // 3. Generamos color y lo inyectamos (Usa "_BaseColor" para URP o "_Color" para Built-in)
-        //            Color vRandomColor = new Color(Random.value, Random.value, Random.value);
-        //            vPropBlock.SetColor("_BaseColor", vRandomColor);
+                KeyValuePair<Chunk, MeshData> vResultado = new KeyValuePair<Chunk, MeshData>(vChunk, vData);
+                mRenderQueue.mResults.Enqueue(vResultado);
 
-        //            // 4. Aplicamos al renderer
-        //            vMr.SetPropertyBlock(vPropBlock);
-        //        }
-        //    }
+                chunksProcessed++;
+            }
 
-        //    // Generación de malla
-        //    Mesh vNewMesh = vGenerator.Generate(
-        //        vChunk,
-        //        mGrid.mChunks,
-        //        mGrid.mSizeInChunks
-        //    );
+            sw.Stop();
 
-        //    mRenderQueue.Apply(vChunk, vNewMesh);
-        //}
+            // Log de progreso (opcional, comenta si genera spam)
+            if (chunksProcessed > 0)
+            {
+                UnityEngine.Debug.Log($"[World] Procesados {chunksProcessed} chunks en {sw.Elapsed.TotalMilliseconds:F2}ms. Quedan {mProcessingBuffer.Count}");
+            }
 
+            // ¿Hemos terminado?
+            if (mProcessingBuffer.Count == 0)
+            {
+                mIsProcessing = false;
+                UnityEngine.Debug.Log("[World] Procesamiento completado");
+            }
+        }
     }
 
     void BuildSurfaceNets()
@@ -246,4 +257,3 @@ public class World : MonoBehaviour
     }
 
 }
-

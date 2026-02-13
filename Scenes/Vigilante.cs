@@ -17,7 +17,7 @@
 //    public async Task Run(CancellationToken pToken)
 //    {
 //        // 1. EL PUNTO DE MIRA (La Baliza)
-//        // Fijamos el centro en la mitad del mundo lógico (8 chunks * 32 / 2)
+//        // Fijamos el centro en la mitad del mundo l?gico (8 chunks * 32 / 2)
 
 //        await Task.Delay(500, pToken);
 
@@ -31,13 +31,13 @@
 //                if (vChunk == null) continue;
 
 //                // --- ACCESO A DATOS 100% ORIGINALES DEL CHUNK ---
-//                // No hay multiplicadores mágicos, ni rejillas ad-hoc.
+//                // No hay multiplicadores m?gicos, ni rejillas ad-hoc.
 //                // Leemos lo que el objeto TIENE en su memoria interna.
 
 //                Vector3 vOriginOriginal = (Vector3)vChunk.mWorldOrigin;
 //                float vSizeOriginal = vChunk.mSize;
 
-//                // Calculamos el centro usando SU origen y SU tamaño
+//                // Calculamos el centro usando SU origen y SU tama?o
 //                //Vector3 vCenter = VoxelUtils.GetChunkCenter(vOriginOriginal, vSizeOriginal);
 //                //Vector3 vCenter = VoxelUtils.GetChunkCenter(vOriginOriginal, vSizeOriginal);
 
@@ -54,10 +54,10 @@
 //                               );
 
 
-//                // --- MÉTRICA CONTRA LA BALIZA ---
+//                // --- M?TRICA CONTRA LA BALIZA ---
 //                float vDistSq = (vCenter - vCurrentCamPos).sqrMagnitude;
 
-//                // --- DECISIÓN ---
+//                // --- DECISI?N ---
 //                int vBaseIndex = VoxelUtils.GetInfoDist(vDistSq);
 //                int vTargetRes = (int)VoxelUtils.LOD_DATA[vBaseIndex];
 //                mDecimator.DispatchToRender(vChunk);
@@ -146,25 +146,16 @@ public class Vigilante
                 float vDistSq = (vCenter - vCurrentCamPos).sqrMagnitude;
 
                 int vBase = VoxelUtils.GetInfoDist(vDistSq);
-
                 int vTargetRes = (int)VoxelUtils.LOD_DATA[vBase];
                 int vCurrentRes = Mathf.RoundToInt(Mathf.Pow(vChunk.mVoxels.Length, 1f / 3f));
 
-
-                Debug.Log($"[CHECK] Dist: {Mathf.Sqrt(vDistSq):F1} | Deseado: {vTargetRes} | TargetActual: {vChunk.mTargetSize} | ArrayLen: {vChunk.mVoxels.Length}");
-                if (vCurrentRes != vTargetRes && vChunk.mTargetSize == 0)
-
-                {
-                    Debug.Log("enviado");
-                    vChunk.mTargetSize = vTargetRes;
-                    mDecimator.DispatchToRender(vChunk);
-
-                }
+                // No marcar ni encolar hasta que el resample est? listo (DecimationManager.RequestLODChange)
+                if (vCurrentRes != vTargetRes)
+                    mDecimator.RequestLODChange(vChunk, vTargetRes);
 
             }
 
-            try { await Task.Delay(500, pToken); }
-
+            try { await Task.Delay(200, pToken); }
             catch { break; }
 
         }

@@ -23,33 +23,32 @@ public class RenderQueueMonohilo
 
     public void ProcessSequential()
     {
-        // Procesamos la cola de forma secuencial (Monohilo) para permitir depuración
+        // Procesamos la cola de forma secuencial (Monohilo) para permitir depuraci?n
         foreach (RenderRequest vRequest in mQueue)
         {
             Chunk vChunk = vRequest.chunk;
 
-            // --- GESTIÓN DE RESOLUCIÓN (LOD) ---
+            // LOD: el resample se hace en DecimationManager antes de Enqueue (datos ya listos).
+            // Solo Redim+Sample aqu? si algo envi? el chunk con mTargetSize (ej. flujos legacy).
             if (vChunk.mTargetSize > 0 && !vChunk.mIsEdited)
             {
-                // Ejecutamos la redimensión
-                vChunk.Redim(vChunk.mTargetSize);
-                SDFGenerator.Sample(vChunk);
-
+                //vChunk.Redim(vChunk.mTargetSize);
+                //SDFGenerator.Sample(vChunk);
+              
             }
 
-
-
-            // --- GENERACIÓN DE MALLA ---
+            // --- GENERACI?N DE MALLA ---
             MeshData vData = vRequest.generator.Generate(
                 vChunk,
                 mGrid.mChunks,
                 mGrid.mSizeInChunks
             );
 
-            // Consumimos la orden
-            //vChunk.mSize = vChunk.mTargetSize; 
-            vChunk.mTargetSize = 0;
-          
+            if (vChunk.mTargetSize > 0 && !vChunk.mIsEdited)
+            {
+                vChunk.mTargetSize = 0;
+            }
+
             KeyValuePair<Chunk, MeshData> vResultado = new KeyValuePair<Chunk, MeshData>(vChunk, vData);
             mResults.Enqueue(vResultado);
         }
@@ -59,12 +58,12 @@ public class RenderQueueMonohilo
         mInWait.Clear();
     }
 
-    // Se ejecuta en el Main Thread (Copia exacta de la lógica original)
+    // Se ejecuta en el Main Thread (Copia exacta de la l?gica original)
     public void Apply(Chunk pChunk, MeshData pData)
     {
         if (pChunk.mViewGO == null) return;
 
-        // 1. Creación de Malla
+        // 1. Creaci?n de Malla
         Mesh vMesh = new Mesh();
         vMesh.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
         vMesh.SetVertices(pData.vertices);
@@ -79,7 +78,7 @@ public class RenderQueueMonohilo
         MeshCollider vMc = pChunk.mViewGO.GetComponent<MeshCollider>();
         if (vMc != null) vMc.sharedMesh = vMesh;
 
-        // 2. APLICACIÓN DE COLOR POR CHUNK
+        // 2. APLICACI?N DE COLOR POR CHUNK
         MeshRenderer vMr = pChunk.mViewGO.GetComponent<MeshRenderer>();
         if (vMr != null)
         {

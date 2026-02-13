@@ -1,4 +1,4 @@
-﻿
+
 using UnityEngine;
 
 public sealed class Chunk
@@ -10,9 +10,12 @@ public sealed class Chunk
     public readonly Vector3Int mCoord;
     public int mSize;
     public readonly Vector3Int mWorldOrigin;
-    // El "deseo" del Vigía
+    /// <summary> 0 = sin marcar. Si &gt; 0, resolución LOD deseada (32/16/8); marca la cascada Redim → Sample → Remesh. </summary>
     public int mTargetSize = 0;
     public bool mIsEdited = false;
+    /// <summary> True mientras el chunk está en la cola de resample del DecimationManager.
+    /// GetDensityGlobal/IsSolidGlobal usan SDF procedural en lugar del array para evitar grietas. </summary>
+    public bool mAwaitingResample = false;
 
     // =========================
     // Datos voxel

@@ -12,23 +12,23 @@
 //    }
 
 //    /// <summary>
-//    /// Determina la resolución basándose en la distancia al observador,
+//    /// Determina la resoluci?n bas?ndose en la distancia al observador,
 //    /// consultando los valores maestros de VoxelUtils.
 //    /// </summary>
 //    public int DetermineResolutionTier(float pDistSq)
 //    {
-//        // 1. Obtenemos el bloque de datos (offset) según la distancia
+//        // 1. Obtenemos el bloque de datos (offset) seg?n la distancia
 //        int infoBlock = VoxelUtils.GetInfoDist(pDistSq);
 
-//        // 2. Extraemos la resolución definida en el primer índice de dicho bloque
-//        // [0] es Resolución, [4] es Resolución LOD1, [8] es Resolución LOD2
+//        // 2. Extraemos la resoluci?n definida en el primer ?ndice de dicho bloque
+//        // [0] es Resoluci?n, [4] es Resoluci?n LOD1, [8] es Resoluci?n LOD2
 //        return (int)VoxelUtils.LOD_DATA[infoBlock];
 //    }
 
 //    public void DispatchToRender(Chunk pChunk)
 //    {
-//        // Filtros futuros (frustum culling, etc.) se implementarán aquí.
-//        // Actualmente, envío directo a la cola de procesamiento.
+//        // Filtros futuros (frustum culling, etc.) se implementar?n aqu?.
+//        // Actualmente, env?o directo a la cola de procesamiento.
 //        mRenderQueue.Enqueue(pChunk, mGenerator);
 //    }
 //}
@@ -37,11 +37,18 @@
 //*****************************************************************************
 
 using UnityEngine;
+using System.Collections.Generic;
 
 public class DecimationManager
 {
     private RenderQueueMonohilo mRenderQueue;
     private MeshGenerator mGenerator;
+
+    /// <summary>
+    /// Chunks pendientes de resample. No se encolan para remesh hasta que sus
+    /// densidades est?n muestreadas para el LOD deseado (evita grietas inter-chunk).
+    /// </summary>
+    private Dictionary<Chunk, int> mPendingResamples = new Dictionary<Chunk, int>();
 
     public void Setup(RenderQueueMonohilo pQueue, MeshGenerator pGenerator)
     {
@@ -49,44 +56,55 @@ public class DecimationManager
         mGenerator = pGenerator;
     }
 
-    //public int DetermineResolutionTier(float pDistSq)
-    //{
-    //    int infoBlock = VoxelUtils.GetInfoDist(pDistSq);
-    //    return (int)VoxelUtils.LOD_DATA[infoBlock];
-    //}
+    /// <summary>
+    /// Solicita cambio de LOD. Marca el chunk con mTargetSize = pTargetRes (0 = sin marcar).
+    /// Esa marca dispara la cascada: Redim ? Sample ? Remesh. No se encola remesh hasta tener datos listos.
+    /// </summary>
+    public void RequestLODChange(Chunk pChunk, int pTargetRes)
+    {
+        if (pChunk == null || pChunk.mIsEdited) return;
+
+        int currentRes = Mathf.RoundToInt(Mathf.Pow(pChunk.mVoxels.Length, 1f / 3f));
+        if (currentRes == pTargetRes) return;
+
+        pChunk.mTargetSize = pTargetRes;
+        pChunk.mAwaitingResample = true;
+        mPendingResamples[pChunk] = pTargetRes;
+    }
 
     /// <summary>
-    /// COMPORTAMIENTO DE TEST: Suspendemos RenderQueue y Pool.
-    /// Pintamos el chunk según el LOD detectado por el Vigilante.
+    /// Procesa hasta maxPerFrame chunks pendientes: Redim + Sample, luego Enqueue a remesh.
+    /// Solo despu?s de tener datos listos se encola (sin estado "dato sucio" en la cola).
     /// </summary>
-    public void DispatchToRender(Chunk pChunk)
+    public int ProcessPendingResamples(int maxPerFrame)
     {
-        // 1. Identificamos el bloque de datos actual para saber el color
-        // Usamos GetInfoRes para saber en qué escalón de la Autoridad estamos
-        int vBase = VoxelUtils.GetInfoRes(pChunk.mTargetSize);
-        int vLodIndex = (int)VoxelUtils.LOD_DATA[vBase + 3];
+        if (mPendingResamples.Count == 0) return 0;
 
-        Color vDebugColor;
-
-        switch (vLodIndex)
+        var toProcess = new List<(Chunk chunk, int targetRes)>();
+        int take = 0;
+        foreach (var kv in mPendingResamples)
         {
-            case 0: // LOD Máximo (Res 32)
-                vDebugColor = Color.white; // Sin cambios notables
-                break;
-            case 1: // LOD Medio (Res 16)
-                vDebugColor = Color.blue;
-                break;
-            case 2: // LOD Bajo (Res 8)
-                vDebugColor = Color.red;
-                break;
-            default:
-                vDebugColor = Color.gray;
-                break;
+            if (take >= maxPerFrame) break;
+            toProcess.Add((kv.Key, kv.Value));
+            take++;
         }
 
-        // 2. Dibujamos la caja en el mundo. 
-        // Usamos una duración de 0.5s para que persista entre ciclos del Vigilante (200ms)
-        pChunk.DrawDebug(vDebugColor, 0.5f);
-        mRenderQueue.Enqueue(pChunk, mGenerator);
+        foreach (var t in toProcess)
+        {
+            mPendingResamples.Remove(t.chunk);
+            t.chunk.Redim(t.targetRes);
+            SDFGenerator.Sample(t.chunk);
+            t.chunk.mAwaitingResample = false;
+            t.chunk.mTargetSize = 0; // Cascada de datos terminada; remesh aplicará la geometría
+            mRenderQueue.Enqueue(t.chunk, mGenerator);
+
+            // Debug visual por LOD
+            int vBase = VoxelUtils.GetInfoRes(t.targetRes);
+            int vLodIndex = (int)VoxelUtils.LOD_DATA[vBase + 3];
+            Color vDebugColor = vLodIndex == 0 ? Color.white : (vLodIndex == 1 ? Color.blue : Color.red);
+            t.chunk.DrawDebug(vDebugColor, 0.5f);
+        }
+
+        return toProcess.Count;
     }
 }

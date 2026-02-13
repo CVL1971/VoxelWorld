@@ -7,7 +7,7 @@ public static class VoxelUtils
 
 
     /// <summary>
-    /// Estructura para transportar la informaci髇 de ubicaci髇 de un voxel.
+    /// Estructura para transportar la informaci?n de ubicaci?n de un voxel.
     /// </summary>
     public struct VoxelHit
     {
@@ -18,7 +18,7 @@ public static class VoxelUtils
     }
 
     // ==========================================================
-    // M蒚ODOS DE CONVERSI覰 CONVENCIONALES
+    // M?TODOS DE CONVERSI?N CONVENCIONALES
     // ==========================================================
 
     public static int PosToVoxel(float position)
@@ -39,10 +39,10 @@ public static class VoxelUtils
 
 
     // ==========================================================
-    // SOBRECARGAS PARA GENERADORES (贜ICO PUNTO DE ACCESO)
+    // SOBRECARGAS PARA GENERADORES (?NICO PUNTO DE ACCESO)
     // ==========================================================
     // ==========================================================
-    // SOBRECARGAS PARA GENERADORES (贜ICO PUNTO DE ACCESO)
+    // SOBRECARGAS PARA GENERADORES (?NICO PUNTO DE ACCESO)
     // ==========================================================
 
     public static float GetDensityGlobal(Chunk currentChunk, Chunk[] allChunks, Vector3Int worldSize, float x, float y, float z)
@@ -60,8 +60,18 @@ public static class VoxelUtils
         Chunk target = allChunks[GetChunkIndex(cx, cy, cz, worldSize)];
         if (target == null) return 0.0f;
 
-        // Usamos mSize para asegurar coherencia con el array de datos actual (mVoxels)
         int targetRes = target.mSize <= 0 ? UNIVERSAL_CHUNK_SIZE : target.mSize;
+        int currentRes = currentChunk.mSize <= 0 ? UNIVERSAL_CHUNK_SIZE : currentChunk.mSize;
+
+        // Resincronizaci?n en bordes (evita grietas al acercar Y al alejar):
+        // - Vecino pendiente de resample: SDF (no tiene datos coherentes a?n).
+        // - Nosotros M?s FINOS que el vecino (acercando/refinando): SDF para no depender de datos viejos del vecino.
+        // - Nosotros M?s GRUESOS o igual que el vecino (alejando/decimando): LEER del array del vecino para que
+        //   nuestro borde coincida con la malla que el vecino ya tiene (?l se gener? antes leyendo nuestros datos).
+        if (target.mAwaitingResample || currentRes > targetRes)
+            return SDFGenerator.Sample(new Vector3(gx, gy, gz));
+
+        // Misma resoluci?n o nosotros m?s gruesos: leer del array del vecino
 
         int lodIdx = GetInfoRes(targetRes);
         float targetStep = LOD_DATA[lodIdx + 1];
@@ -70,17 +80,17 @@ public static class VoxelUtils
         float localY = gy - target.mWorldOrigin.y;
         float localZ = gz - target.mWorldOrigin.z;
 
-        // Convertimos la posici贸n continua a 铆ndices del grid del chunk vecino
+        // Convertimos la posici?n continua a ?ndices del grid del chunk vecino
         float fx = localX / targetStep;
         float fy = localY / targetStep;
         float fz = localZ / targetStep;
 
-        // Si estamos EXACTAMENTE en un v茅rtice del grid, lo devolvemos directamente
+        // Si estamos EXACTAMENTE en un v?rtice del grid, lo devolvemos directamente
         int ix = Mathf.RoundToInt(fx);
         int iy = Mathf.RoundToInt(fy);
         int iz = Mathf.RoundToInt(fz);
 
-        // Tolerancia para considerar que estamos "en" un v茅rtice
+        // Tolerancia para considerar que estamos "en" un v?rtice
         const float SNAP_THRESHOLD = 0.01f;
 
         if (Mathf.Abs(fx - ix) < SNAP_THRESHOLD &&
@@ -93,7 +103,7 @@ public static class VoxelUtils
             return target.DensityAt(ix, iy, iz);
         }
 
-        // Si no, hacemos interpolaci贸n trilineal para suavizar la transici贸n
+        // Si no, hacemos interpolaci?n trilineal para suavizar la transici?n
         int x0 = Mathf.Clamp(Mathf.FloorToInt(fx), 0, targetRes - 1);
         int y0 = Mathf.Clamp(Mathf.FloorToInt(fy), 0, targetRes - 1);
         int z0 = Mathf.Clamp(Mathf.FloorToInt(fz), 0, targetRes - 1);
@@ -106,7 +116,7 @@ public static class VoxelUtils
         float ty = fy - y0;
         float tz = fz - z0;
 
-        // Interpolaci贸n trilineal
+        // Interpolaci?n trilineal
         float c000 = target.DensityAt(x0, y0, z0);
         float c100 = target.DensityAt(x1, y0, z0);
         float c010 = target.DensityAt(x0, y1, z0);
@@ -148,6 +158,11 @@ public static class VoxelUtils
         if (target == null) return false;
 
         int targetRes = target.mSize <= 0 ? UNIVERSAL_CHUNK_SIZE : target.mSize;
+        int currentRes = currentChunk.mSize <= 0 ? UNIVERSAL_CHUNK_SIZE : currentChunk.mSize;
+
+        // Misma l?gica que GetDensityGlobal: SDF solo si vecino pendiente o nosotros m?s finos; si no, leer array.
+        if (target.mAwaitingResample || currentRes > targetRes)
+            return SDFGenerator.Sample(new Vector3(gx, gy, gz)) >= 0.5f;
 
         int lodIdx = GetInfoRes(targetRes);
         float targetStep = LOD_DATA[lodIdx + 1];
@@ -172,7 +187,7 @@ public static class VoxelUtils
     }
 
     // ==========================================================
-    // L覩ICA DE LOCALIZACI覰
+    // L?GICA DE LOCALIZACI?N
     // ==========================================================
 
     public static VoxelHit GetHitInfo(Vector3 worldPos, int chunkSize, Vector3Int worldChunkSize)
@@ -233,7 +248,7 @@ public static class VoxelUtils
         return new List<int>(indices);
     }
 
-    // [0] Resoluci髇 | [1] Paso | [2] DistanciaSq | [3] LOD_Index
+    // [0] Resoluci?n | [1] Paso | [2] DistanciaSq | [3] LOD_Index
     public static readonly float[] LOD_DATA =
     {
         32f, 1.0f, 9216f,   0f,

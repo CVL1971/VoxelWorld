@@ -34,10 +34,10 @@ public class World : MonoBehaviour
     private Vigilante mVigilante;
     private DecimationManager mDecimator;
 
-    [Header("Configuración de Carga")]
-    [SerializeField] int mMinQueueToProcess = 10; // No disparamos núcleos por menos de 10 chunks de LOD
-    [SerializeField] float mMaxWaitTime = 1.0f;   // Pero si pasa 1 segundo, procesamos lo que haya
-    [SerializeField] int mChunksPerFrame = 1;     // Cuántos chunks procesamos por frame (ajusta según rendimiento)
+    [Header("Configuración de Carga / LOD")]
+    [SerializeField] int mMinQueueToProcess = 1;  // Procesar en cuanto haya al menos 1 chunk (LOD activo)
+    [SerializeField] float mMaxWaitTime = 0.2f;   // Si hay cola y no llegamos al mínimo, esperar como mucho esto
+    [SerializeField] int mChunksPerFrame = 2;     // Chunks a resamplear + mallar por frame (LOD visible)
     [SerializeField] float mMaxMillisecondsPerFrame = 16.0f; // Tiempo máximo de procesamiento por frame (16ms = 60fps)
     private float mTimer = 0f;
     private bool mIsProcessing = false;           // Flag para saber si estamos procesando
@@ -122,6 +122,10 @@ public class World : MonoBehaviour
             mVigilante.vCurrentCamPos = mCamera.transform.position;
         }
 
+        // 0. RESAMPLE PENDIENTE (datos listos antes de encolar remesh; evita grietas)
+        if (mDecimator != null)
+            mDecimator.ProcessPendingResamples(mChunksPerFrame);
+
         // 1. APLICAR RESULTADOS (siempre rápido, solo aplicar mallas ya generadas)
         // Aplicamos varios resultados por frame ya que es una operación ligera
         for (int i = 0; i < 8; i++)
@@ -139,18 +143,14 @@ public class World : MonoBehaviour
         // 2. GESTIÓN DE PROCESAMIENTO GRADUAL
         int vQueueCount = mRenderQueue.mQueue.Count;
 
-        // Si hay trabajo pendiente, incrementamos el timer
         if (vQueueCount > 0)
-        {
             mTimer += Time.deltaTime;
-        }
+        else
+            mTimer = 0f;
 
-        // DECISIÓN: ¿Iniciamos el procesamiento?
+        // DECISIÓN: ¿Iniciamos el procesamiento? (con mMinQueueToProcess=1, arranca en cuanto hay LOD pendiente)
         if (!mIsProcessing && vQueueCount > 0)
         {
-            // Condiciones para iniciar procesamiento:
-            // 1. Hay suficientes chunks acumulados
-            // 2. O ha pasado suficiente tiempo
             if (vQueueCount >= mMinQueueToProcess || mTimer >= mMaxWaitTime)
             {
                 // Transferimos la cola principal al buffer de procesamiento

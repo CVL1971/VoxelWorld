@@ -119,7 +119,7 @@ public class World : MonoBehaviour
         // Alimentamos la sonda con la posición actual de forma segura
         if (mVigilante != null && mCamera != null)
         {
-            mVigilante.vCurrentCamPos = mCamera.transform.position;
+            //mVigilante.vCurrentCamPos = mCamera.transform.position;
         }
 
         // 0. RESAMPLE PENDIENTE (datos listos antes de encolar remesh; evita grietas)
@@ -239,7 +239,7 @@ public class World : MonoBehaviour
         // 2. DISPARAMOS LA PARALELIZACIÓN
         UnityEngine.Debug.Log("Iniciando generación paralela... Preparate para el error.");
         //mRenderQueue.ProcessParallel();
-        mRenderQueue.ProcessSequential();
+        //mRenderQueue.ProcessSequential();
     }
 
     void OnDisable()

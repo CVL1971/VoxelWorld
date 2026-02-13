@@ -25,39 +25,39 @@ public class RenderQueueMonohilo
 
     public void ProcessSequential()
     {
-        // Procesamos la cola de forma secuencial (Monohilo) para permitir depuraci?n
-        foreach (RenderRequest vRequest in mQueue)
-        {
-            Chunk vChunk = vRequest.chunk;
+        //// Procesamos la cola de forma secuencial (Monohilo) para permitir depuraci?n
+        //foreach (RenderRequest vRequest in mQueue)
+        //{
+        //    Chunk vChunk = vRequest.chunk;
 
-            // LOD: el resample se hace en DecimationManager antes de Enqueue (datos ya listos).
-            // Solo Redim+Sample aqu? si algo envi? el chunk con mTargetSize (ej. flujos legacy).
-            if (vChunk.mTargetSize > 0 && !vChunk.mIsEdited)
-            {
-                //vChunk.Redim(vChunk.mTargetSize);
-                //SDFGenerator.Sample(vChunk);
+        //    // LOD: el resample se hace en DecimationManager antes de Enqueue (datos ya listos).
+        //    // Solo Redim+Sample aqu? si algo envi? el chunk con mTargetSize (ej. flujos legacy).
+        //    if (vChunk.mTargetSize > 0 && !vChunk.mIsEdited)
+        //    {
+        //        //vChunk.Redim(vChunk.mTargetSize);
+        //        //SDFGenerator.Sample(vChunk);
               
-            }
+        //    }
 
-            // --- GENERACI?N DE MALLA ---
-            MeshData vData = vRequest.generator.Generate(
-                vChunk,
-                mGrid.mChunks,
-                mGrid.mSizeInChunks
-            );
+        //    // --- GENERACI?N DE MALLA ---
+        //    MeshData vData = vRequest.generator.Generate(
+        //        vChunk,
+        //        mGrid.mChunks,
+        //        mGrid.mSizeInChunks
+        //    );
 
-            if (vChunk.mTargetSize > 0 && !vChunk.mIsEdited)
-            {
-                vChunk.mTargetSize = 0;
-            }
+        //    if (vChunk.mTargetSize > 0 && !vChunk.mIsEdited)
+        //    {
+        //        vChunk.mTargetSize = 0;
+        //    }
 
-            KeyValuePair<Chunk, MeshData> vResultado = new KeyValuePair<Chunk, MeshData>(vChunk, vData);
-            mResults.Enqueue(vResultado);
-        }
+        //    KeyValuePair<Chunk, MeshData> vResultado = new KeyValuePair<Chunk, MeshData>(vChunk, vData);
+        //    mResults.Enqueue(vResultado);
+        //}
 
-        // Limpieza de la cola
-        mQueue.Clear();
-        mInWait.Clear();
+        //// Limpieza de la cola
+        //mQueue.Clear();
+        //mInWait.Clear();
     }
 
     // Se ejecuta en el Main Thread (Copia exacta de la l?gica original)

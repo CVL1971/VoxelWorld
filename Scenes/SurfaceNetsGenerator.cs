@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 using System.Collections.Generic;
 
 public class SurfaceNetsGenerator : MeshGenerator
@@ -7,48 +7,49 @@ public class SurfaceNetsGenerator : MeshGenerator
 
     public override MeshData Generate(Chunk pChunk, Chunk[] allChunks, Vector3Int worldSize)
     {
-        int size = pChunk.mTargetSize <= 0 ? VoxelUtils.UNIVERSAL_CHUNK_SIZE : pChunk.mTargetSize;
+        int size = pChunk.mSize > 0 ? pChunk.mSize : VoxelUtils.UNIVERSAL_CHUNK_SIZE;
         int lodIndex = VoxelUtils.GetInfoRes(size);
         float vStep = VoxelUtils.LOD_DATA[lodIndex + 1];
 
         MeshData meshData = new MeshData();
 
-        // 1. CACHÉ LOCAL: Escalado a metros en la solicitud
-        float[,,] localCache = new float[size + 2, size + 2, size + 2];
-        for (int z = 0; z <= size + 1; z++)
-            for (int y = 0; y <= size + 1; y++)
-                for (int x = 0; x <= size + 1; x++)
+        const int PAD = 1;
+        int cacheSize = size + 2 + PAD;
+        float[,,] localCache = new float[cacheSize, cacheSize, cacheSize];
+        for (int zi = 0; zi < cacheSize; zi++)
+            for (int yi = 0; yi < cacheSize; yi++)
+                for (int xi = 0; xi < cacheSize; xi++)
                 {
-                    // Solicitamos la posición real en metros
-                    localCache[x, y, z] = VoxelUtils.GetDensityGlobal(pChunk, allChunks, worldSize, x * vStep, y * vStep, z * vStep);
+                    float lx = (xi - PAD) * vStep, ly = (yi - PAD) * vStep, lz = (zi - PAD) * vStep;
+                    localCache[xi, yi, zi] = VoxelUtils.GetDensityGlobal(pChunk, allChunks, worldSize, lx, ly, lz);
                 }
 
-        int[,,] vmap = new int[size + 1, size + 1, size + 1];
+        int vmapSize = size + 1 + PAD;
+        int[,,] vmap = new int[vmapSize, vmapSize, vmapSize];
+        for (int zi = 0; zi < vmapSize; zi++)
+            for (int yi = 0; yi < vmapSize; yi++)
+                for (int xi = 0; xi < vmapSize; xi++)
+                    vmap[xi, yi, zi] = -1;
 
-        // 2. VÉRTICES
-        for (int z = 0; z <= size; z++)
-            for (int y = 0; y <= size; y++)
-                for (int x = 0; x <= size; x++)
+        for (int zi = 0; zi < vmapSize; zi++)
+            for (int yi = 0; yi < vmapSize; yi++)
+                for (int xi = 0; xi < vmapSize; xi++)
                 {
-                    if (CellCrossesIso(localCache, x, y, z, ISO_THRESHOLD))
+                    if (CellCrossesIso(localCache, xi, yi, zi, ISO_THRESHOLD))
                     {
-                        vmap[x, y, z] = meshData.vertices.Count;
-                        Vector3 localPos = ComputeCellVertex(localCache, x, y, z, ISO_THRESHOLD, vStep);
+                        vmap[xi, yi, zi] = meshData.vertices.Count;
+                        Vector3 localPos = ComputeCellVertex(localCache, xi, yi, zi, ISO_THRESHOLD, vStep);
+                        localPos -= new Vector3(PAD, PAD, PAD) * vStep;
                         meshData.vertices.Add(localPos);
-
                         Vector3 worldPos = (Vector3)pChunk.mWorldOrigin + localPos;
                         meshData.normals.Add(SDFGenerator.CalculateNormal(worldPos));
                     }
-                    else vmap[x, y, z] = -1;
                 }
 
-        // 3. CARAS
-        for (int z = 0; z <= size; z++)
-            for (int y = 0; y <= size; y++)
-                for (int x = 0; x <= size; x++)
-                {
-                    EmitCorrectFaces(localCache, x, y, z, ISO_THRESHOLD, vmap, meshData.triangles, size);
-                }
+        for (int zi = 1; zi <= size + 1; zi++)
+            for (int yi = 1; yi <= size + 1; yi++)
+                for (int xi = 1; xi <= size + 1; xi++)
+                    EmitCorrectFaces(localCache, xi, yi, zi, ISO_THRESHOLD, vmap, meshData.triangles, vmapSize);
 
         return meshData;
     }
@@ -83,33 +84,33 @@ public class SurfaceNetsGenerator : MeshGenerator
         return false;
     }
 
-    protected void EmitCorrectFaces(float[,,] cache, int x, int y, int z, float iso, int[,,] vmap, List<int> tris, int size)
+    protected void EmitCorrectFaces(float[,,] cache, int xi, int yi, int zi, float iso, int[,,] vmap, List<int> tris, int vmapSize)
     {
-        float d0 = cache[x, y, z];
-        if (x < size)
+        float d0 = cache[xi, yi, zi];
+        if (xi < vmapSize - 1)
         {
-            float d1 = cache[x + 1, y, z];
-            if ((d0 >= iso) != (d1 >= iso) && y > 0 && z > 0)
+            float d1 = cache[xi + 1, yi, zi];
+            if ((d0 >= iso) != (d1 >= iso))
             {
-                int v0 = vmap[x, y - 1, z - 1], v1 = vmap[x, y, z - 1], v2 = vmap[x, y, z], v3 = vmap[x, y - 1, z];
+                int v0 = vmap[xi, yi - 1, zi - 1], v1 = vmap[xi, yi, zi - 1], v2 = vmap[xi, yi, zi], v3 = vmap[xi, yi - 1, zi];
                 if (v0 >= 0 && v1 >= 0 && v2 >= 0 && v3 >= 0) if (d0 > d1) AddQuad(tris, v0, v1, v2, v3); else AddQuad(tris, v0, v3, v2, v1);
             }
         }
-        if (y < size)
+        if (yi < vmapSize - 1)
         {
-            float d1 = cache[x, y + 1, z];
-            if ((d0 >= iso) != (d1 >= iso) && x > 0 && z > 0)
+            float d1 = cache[xi, yi + 1, zi];
+            if ((d0 >= iso) != (d1 >= iso))
             {
-                int v0 = vmap[x - 1, y, z - 1], v1 = vmap[x, y, z - 1], v2 = vmap[x, y, z], v3 = vmap[x - 1, y, z];
+                int v0 = vmap[xi - 1, yi, zi - 1], v1 = vmap[xi, yi, zi - 1], v2 = vmap[xi, yi, zi], v3 = vmap[xi - 1, yi, zi];
                 if (v0 >= 0 && v1 >= 0 && v2 >= 0 && v3 >= 0) if (d0 < d1) AddQuad(tris, v0, v1, v2, v3); else AddQuad(tris, v0, v3, v2, v1);
             }
         }
-        if (z < size)
+        if (zi < vmapSize - 1)
         {
-            float d1 = cache[x, y, z + 1];
-            if ((d0 >= iso) != (d1 >= iso) && x > 0 && y > 0)
+            float d1 = cache[xi, yi, zi + 1];
+            if ((d0 >= iso) != (d1 >= iso))
             {
-                int v0 = vmap[x - 1, y - 1, z], v1 = vmap[x, y - 1, z], v2 = vmap[x, y, z], v3 = vmap[x - 1, y, z];
+                int v0 = vmap[xi - 1, yi - 1, zi], v1 = vmap[xi, yi - 1, zi], v2 = vmap[xi, yi, zi], v3 = vmap[xi - 1, yi, zi];
                 if (v0 >= 0 && v1 >= 0 && v2 >= 0 && v3 >= 0) if (d0 > d1) AddQuad(tris, v0, v1, v2, v3); else AddQuad(tris, v0, v3, v2, v1);
             }
         }

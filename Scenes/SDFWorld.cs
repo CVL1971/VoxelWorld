@@ -126,18 +126,14 @@ public class World : MonoBehaviour
         if (mDecimator != null)
             mDecimator.ProcessPendingResamples(mChunksPerFrame);
 
-        // 1. APLICAR RESULTADOS (siempre rápido, solo aplicar mallas ya generadas)
-        // Aplicamos varios resultados por frame ya que es una operación ligera
+        // 1. APLICAR RESULTADOS: primero todos los LOD (geometría por distancia), luego hasta 8 de la cola inicial
+        // Sin esto, los 128 resultados de BuildSurfaceNets retrasan la visualización de niveles de detalle
+        while (mRenderQueue.mResultsLOD.TryDequeue(out var vResultLOD))
+            mRenderQueue.Apply(vResultLOD.Key, vResultLOD.Value);
         for (int i = 0; i < 8; i++)
         {
-            if (mRenderQueue.mResults.TryDequeue(out var vResult))
-            {
-                mRenderQueue.Apply(vResult.Key, vResult.Value);
-            }
-            else
-            {
-                break;
-            }
+            if (!mRenderQueue.mResults.TryDequeue(out var vResult)) break;
+            mRenderQueue.Apply(vResult.Key, vResult.Value);
         }
 
         // 2. GESTIÓN DE PROCESAMIENTO GRADUAL
@@ -194,11 +190,10 @@ public class World : MonoBehaviour
                     mGrid.mSizeInChunks
                 );
 
-                // Consumimos la orden
                 vChunk.mTargetSize = 0;
 
                 KeyValuePair<Chunk, MeshData> vResultado = new KeyValuePair<Chunk, MeshData>(vChunk, vData);
-                mRenderQueue.mResults.Enqueue(vResultado);
+                mRenderQueue.mResultsLOD.Enqueue(vResultado);
 
                 chunksProcessed++;
             }

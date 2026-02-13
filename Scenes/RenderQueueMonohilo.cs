@@ -9,6 +9,8 @@ public class RenderQueueMonohilo
     public Queue<RenderRequest> mQueue = new Queue<RenderRequest>();
     public HashSet<Chunk> mInWait = new HashSet<Chunk>();
     public Queue<KeyValuePair<Chunk, MeshData>> mResults = new Queue<KeyValuePair<Chunk, MeshData>>();
+    /// <summary> Resultados de LOD (remesh por distancia). Se aplican antes que mResults para que la geometría por nivel se vea de inmediato. </summary>
+    public Queue<KeyValuePair<Chunk, MeshData>> mResultsLOD = new Queue<KeyValuePair<Chunk, MeshData>>();
 
     public void Setup(Grid pGrid) { mGrid = pGrid; }
 

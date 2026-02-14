@@ -1,123 +1,142 @@
-//using System;
-//using System.Collections.Concurrent;
-//using System.Collections.Generic;
-//using System.Threading.Tasks;
+using System;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.Threading.Tasks;
 using UnityEngine;
 
-public struct RenderRequest
+public struct RenderJob
 {
-    public Chunk chunk;
-    public MeshGenerator generator;
-    public RenderRequest(Chunk pChunk, MeshGenerator pGenerator)
+    public Chunk mChunk;
+    public MeshGenerator mMeshGenerator;
+    public RenderJob(Chunk pChunk, MeshGenerator pMeshGenerator)
     {
-        this.chunk = pChunk;
-        this.generator = pGenerator;
+        mChunk = pChunk;
+        mMeshGenerator = pMeshGenerator;
     }
 }
 
-//public class RenderQueue
-//{
-//    private Grid mGrid;
-//    public ConcurrentQueue<RenderRequest> mQueue = new ConcurrentQueue<RenderRequest>();
-//    public ConcurrentDictionary<Chunk, byte> mInWait = new ConcurrentDictionary<Chunk, byte>();
-//    public ConcurrentQueue<KeyValuePair<Chunk, MeshData>> mResults = new ConcurrentQueue<KeyValuePair<Chunk, MeshData>>();
+public class RenderQueue
+{
+    private Grid mGrid;
+    public ConcurrentQueue<RenderJob> mQueue = new ConcurrentQueue<RenderJob>();
+    public ConcurrentDictionary<Chunk, byte> mInWait = new ConcurrentDictionary<Chunk, byte>();
+    public ConcurrentQueue<KeyValuePair<Chunk, MeshData>> mResultsLOD = new ConcurrentQueue<KeyValuePair<Chunk, MeshData>>();
 
-//    public void Setup(Grid pGrid) { mGrid = pGrid; }
+    // Constructor original: La clase nace con su contexto
+    public RenderQueue(Grid pGrid)
+    {
+        mGrid = pGrid;
+    }
 
-//    public void Enqueue(Chunk pChunk, MeshGenerator pGenerator)
-//    {
-//        if (pChunk == null || pGenerator == null) return;
-//        if (mInWait.TryAdd(pChunk, 0))
-//        {
-//            mQueue.Enqueue(new RenderRequest(pChunk, pGenerator));
-//        }
-//    }
+    public void Enqueue(Chunk pChunk, MeshGenerator pGenerator)
+    {
+        if (pChunk == null || pGenerator == null) return;
+        if (mInWait.TryAdd(pChunk, 0))
+        {
+            mQueue.Enqueue(new RenderJob(pChunk, pGenerator));
+        }
+    }
 
-//    public void ProcessParallel()
-//    {
-//        // Usamos el delegado explícito para evitar azúcar sintáctico
-//        Parallel.ForEach(mQueue, delegate (RenderRequest vRequest)
-//        {
-//            Chunk vChunk = vRequest.chunk;
+    /// <summary>
+    /// Procesa la generación de mallas. 
+    /// nThreads = -1 (Todo), 0 (Todo menos uno), N (Hilos exactos).
+    /// </summary>
+    public void ProcessParallel(int nThreads = -1)
+    {
+        int hilosLogicos = Environment.ProcessorCount;
+        int hilosAUsar;
 
-//            // --- GESTIÓN DE RESOLUCIÓN (LOD) ---
-//            // Si hay una orden pendiente (marcada por el Vigía o Decimator)
-//            if (vChunk.mTargetSize > 0)
-//            {
-//                // Ejecutamos la redimensión usando tu función específica
-//                vChunk.Redim(vChunk.mTargetSize);
+        // Lógica de graduación de hilos (Sustituye a la versión monohilo)
+        if (nThreads == -1) hilosAUsar = hilosLogicos;
+        else if (nThreads == 0) hilosAUsar = Math.Max(1, hilosLogicos - 1);
+        else if (nThreads == 1) hilosAUsar = 1; // Modo monohilo explícito
+        else hilosAUsar = Math.Min(nThreads, hilosLogicos);
 
-//                // Por ahora, el ResampleData se queda pendiente para la fase 2
-//                //SDFGenerator.ResampleData(vChunk); 
+        ParallelOptions opciones = new ParallelOptions { MaxDegreeOfParallelism = hilosAUsar };
 
-//            }
+        Parallel.ForEach(mQueue, opciones, delegate (RenderJob vRequest)
+        {
+            Chunk vChunk = vRequest.mChunk;
 
-//            // --- GENERACIÓN DE MALLA (Tu lógica original) ---
-//            MeshData vData = vRequest.generator.Generate(
-//                vChunk,
-//                mGrid.mChunks,
-//                mGrid.mSizeInChunks
-//            );
+            // 1. Gestión de LOD
+            if (vChunk.mTargetSize > 0)
+            {
+                vChunk.Redim(vChunk.mTargetSize);
+            }
 
-//            // Consumimos la orden
-//            vChunk.mTargetSize = 0;
+            // 2. Generación de malla (Lógica acoplada y rápida)
+            MeshData vData = vRequest.mMeshGenerator.Generate(
+                vChunk,
+                mGrid.mChunks,
+                mGrid.mSizeInChunks
+            );
 
-//            KeyValuePair<Chunk, MeshData> vResultado = new KeyValuePair<Chunk, MeshData>(vChunk, vData);
-//            mResults.Enqueue(vResultado);
-//        });
+            vChunk.mTargetSize = 0;
 
-//        // Limpieza manual de la cola
-//        RenderRequest vTrash;
-//        while (mQueue.TryDequeue(out vTrash)) { }
-//        mInWait.Clear();
-//    }
+            // 3. Encolado de resultados
+            if (vData != null)
+            {
+                mResultsLOD.Enqueue(new KeyValuePair<Chunk, MeshData>(vChunk, vData));
+            }
+        });
 
-//    // Se ejecuta en el Main Thread
-//    public void Apply(Chunk pChunk, MeshData pData)
-//    {
-//        if (pChunk.mViewGO == null) return;
+        // Limpieza de cola de entrada
+        RenderJob vTrash;
+        while (mQueue.TryDequeue(out vTrash)) { }
+        mInWait.Clear();
+    }
 
-//        // 1. Creación de Malla
-//        Mesh vMesh = new Mesh();
-//        vMesh.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
-//        vMesh.SetVertices(pData.vertices);
-//        vMesh.SetNormals(pData.normals);
-//        vMesh.SetTriangles(pData.triangles, 0);
-//        vMesh.RecalculateBounds();
+    // Lógica de aplicación original íntegra
+    public void Apply(Chunk pChunk, MeshData pData)
+    {
+        if (pChunk.mViewGO == null) return;
 
-//        MeshFilter vMf = pChunk.mViewGO.GetComponent<MeshFilter>();
-//        if (vMf.sharedMesh != null) GameObject.Destroy(vMf.sharedMesh);
-//        vMf.sharedMesh = vMesh;
+        // 1. GENERACIÓN DE MALLA (Sin cambios)
+        Mesh vMesh = new Mesh();
+        vMesh.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
+        vMesh.SetVertices(pData.vertices);
+        vMesh.SetNormals(pData.normals);
+        vMesh.SetTriangles(pData.triangles, 0);
+        vMesh.RecalculateBounds();
 
-//        MeshCollider vMc = pChunk.mViewGO.GetComponent<MeshCollider>();
-//        if (vMc != null) vMc.sharedMesh = vMesh;
+        MeshFilter vMf = pChunk.mViewGO.GetComponent<MeshFilter>();
+        if (vMf.sharedMesh != null) GameObject.Destroy(vMf.sharedMesh);
+        vMf.sharedMesh = vMesh;
 
-//        // 2. APLICACIÓN DE COLOR ALEATORIO POR CHUNK
-//        MeshRenderer vMr = pChunk.mViewGO.GetComponent<MeshRenderer>();
-//        if (vMr != null)
-//        {
-//            MaterialPropertyBlock vPropBlock = new MaterialPropertyBlock();
-//            vMr.GetPropertyBlock(vPropBlock);
+        MeshCollider vMc = pChunk.mViewGO.GetComponent<MeshCollider>();
+        if (vMc != null) vMc.sharedMesh = vMesh;
 
-//            // 1. Normalizamos la altura (Y) entre 0 y 1 basándonos en el tamaño del mundo
-//            // Si mSizeInChunks.y es 2, el factor irá de 0 a 0.5 o 1.0
-//            float heightFactor = (float)pChunk.mCoord.y / Mathf.Max(1, mGrid.mSizeInChunks.y);
+        // 2. APLICACIÓN DE COLOR ESTABLE
+        MeshRenderer vMr = pChunk.mViewGO.GetComponent<MeshRenderer>();
+        if (vMr != null)
+        {
+            MaterialPropertyBlock vPropBlock = new MaterialPropertyBlock();
+            vMr.GetPropertyBlock(vPropBlock);
 
-//            // 2. Definimos dos colores para la transición (ejemplo: de Valle a Cima)
-//            Color colorBajo = new Color(0.1f, 0.4f, 0.1f); // Verde oscuro/Bosque
-//            Color colorAlto = new Color(0.8f, 0.8f, 0.9f); // Gris nieve/Cielo
+            // --- CORRECCIÓN DE Z-FIGHTING VISUAL ---
 
-//            // 3. Interpolación lineal (Lerp)
-//            Color finalColor = Color.Lerp(colorBajo, colorAlto, heightFactor);
+            // Calculamos el factor de altura con un pequeño margen para evitar valores extremos (0 o 1)
+            float worldHeight = Mathf.Max(1, mGrid.mSizeInChunks.y);
+            float heightFactor = (float)pChunk.mCoord.y / worldHeight;
+            heightFactor = Mathf.Clamp(heightFactor, 0.01f, 0.99f);
 
-//            // 4. Añadimos un toque de variación aleatoria sutil para que los chunks 
-//            // vecinos no sean exactamente iguales (opcional)
-//            float noise = (float)pChunk.mCoord.x * 0.1f + (float)pChunk.mCoord.z * 0.1f;
-//            finalColor *= (0.9f + Mathf.Repeat(noise, 0.2f));
+            // Usamos un ruido basado en una función de onda suave (Seno/Coseno) 
+            // En lugar de Repeat/Multiplicación, esto crea transiciones coherentes entre vecinos
+            float seed = (pChunk.mCoord.x * 0.13f) + (pChunk.mCoord.z * 0.17f);
+            float waveNoise = (Mathf.Sin(seed) + 1f) * 0.5f; // Normalizado 0 a 1
 
-//            vPropBlock.SetColor("_BaseColor", finalColor);
-//            vPropBlock.SetColor("_Color", finalColor);
-//            vMr.SetPropertyBlock(vPropBlock);
-//        }
-//    }
-//}
+            // Definimos los colores base
+            Color colorBajo = new Color(0.1f, 0.4f, 0.1f);
+            Color colorAlto = new Color(0.8f, 0.8f, 0.9f);
+
+            // MEZCLA FINAL: Aplicamos el ruido al factor de mezcla, NO al color final.
+            // Esto hace que el borde sea una transición de color y no un cambio de brillo.
+            float finalMix = Mathf.Lerp(heightFactor, waveNoise, 0.05f);
+            Color finalColor = Color.Lerp(colorBajo, colorAlto, finalMix);
+
+            vPropBlock.SetColor("_BaseColor", finalColor);
+            vPropBlock.SetColor("_Color", finalColor);
+            vMr.SetPropertyBlock(vPropBlock);
+        }
+    }
+}

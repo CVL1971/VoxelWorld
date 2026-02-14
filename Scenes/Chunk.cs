@@ -48,6 +48,17 @@ public sealed class Chunk
         //mVoxels = new VoxelData[pSize * pSize * pSize];
     }
 
+    public void PrepareView(Transform worldRoot, Material surfaceMaterial)
+    {
+        if (mViewGO == null)
+        {
+            mViewGO = new GameObject("Chunk_" + mCoord, typeof(MeshFilter), typeof(MeshRenderer), typeof(MeshCollider));
+            mViewGO.transform.parent = worldRoot;
+            mViewGO.transform.position = (Vector3)mWorldOrigin;
+            mViewGO.GetComponent<MeshRenderer>().sharedMaterial = surfaceMaterial;
+        }
+    }
+
     public void OnDestroy() // O cuando el chunk se desactiva
     {
         if (mVoxels != null)

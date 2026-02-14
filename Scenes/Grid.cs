@@ -7,6 +7,7 @@ public class Grid
     public readonly Vector3Int mSizeInChunks;
     public readonly int mChunkSize;
     public GameObject mWorldRoot;
+    public delegate void ChunkAction(Chunk chunk);
 
     public Grid(Vector3Int pSizeInChunks, int pChunkSize)
     {
@@ -33,10 +34,11 @@ public class Grid
 
     }
 
-    public void ReadFromSDFGenerator() {
+    public void ApplyToChunks(ChunkAction pMethod) 
+    {
 
         // 1. Calcula el ruido Perlin 2D, densidades y solidez
-        foreach (Chunk chunk in mChunks) SDFGenerator.Sample(chunk);
+        foreach (Chunk chunk in mChunks) pMethod(chunk);
      
 }
 

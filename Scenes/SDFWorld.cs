@@ -7,7 +7,7 @@ using System.Threading;
 public class World : MonoBehaviour
 {
 
-    int mChunkSize = VoxelUtils.UNIVERSAL_CHUNK_SIZE;
+    int mChunkSize;
 
     [Header("Rendering")]
     [SerializeField] Material mSolidMaterial;
@@ -23,11 +23,12 @@ public class World : MonoBehaviour
     Vector3Int mGridInUnits;
     Vector3Int mGridInChunks;
     Mesh mWorldMesh;
-    RenderQueueMonohilo mRenderQueue;
+    RenderQueueMono mRenderQueue;
+    RenderQueue mRenderQueueMulti;
 
     MeshGenerator mMeshGenerator;
     SurfaceNetsGenerator mSurfaceNet = new SurfaceNetsGenerator();
-    SurfaceNetsGeneratorQEF mSurfaceNetQEF = new SurfaceNetsGeneratorQEF();
+    SurfaceNetsGeneratorQEFOriginal mSurfaceNetQEF = new SurfaceNetsGeneratorQEFOriginal();
     private CancellationTokenSource mCTS;
 
     // Los nuevos motores de LOD
@@ -35,40 +36,34 @@ public class World : MonoBehaviour
     private DecimationManager mDecimator;
 
     [Header("Configuración de Carga / LOD")]
-    [SerializeField] int mMinQueueToProcess = 1;  // Procesar en cuanto haya al menos 1 chunk (LOD activo)
+    [SerializeField] int mMinQueueToProcess = 5;  // Procesar en cuanto haya al menos 1 chunk (LOD activo)
     [SerializeField] float mMaxWaitTime = 0.2f;   // Si hay cola y no llegamos al mínimo, esperar como mucho esto
     [SerializeField] int mChunksPerFrame = 2;     // Chunks a resamplear + mallar por frame (LOD visible)
     [SerializeField] float mMaxMillisecondsPerFrame = 16.0f; // Tiempo máximo de procesamiento por frame (16ms = 60fps)
     private float mTimer = 0f;
     private bool mIsProcessing = false;           // Flag para saber si estamos procesando
-    private Queue<RenderRequest> mProcessingBuffer = new Queue<RenderRequest>(); // Cola temporal de procesamiento
+    private Queue<RenderJob> mProcessingBuffer = new Queue<RenderJob>(); // Cola temporal de procesamiento
 
 
     void Start()
     {
+        #region Codigo para medir inicializacion.
+        //Stopwatch sw = null;
+        //sw = Stopwatch.StartNew();
+        //sw.Stop();
+        //UnityEngine.Debug.Log($"[SurfaceNets] TERRAIN SAMPLER: {sw.Elapsed.TotalMilliseconds:F3} ms");
+        #endregion
 
-        Stopwatch sw = null;
-        sw = Stopwatch.StartNew();
-
-        mRenderQueue = new RenderQueueMonohilo();
-        mGridInChunks = new Vector3Int(8, 2, 8);
+        mChunkSize = VoxelUtils.UNIVERSAL_CHUNK_SIZE;
+        mGridInChunks = new Vector3Int(16, 3, 16);
         mGridInUnits = mGridInChunks * mChunkSize;
         mGrid = new Grid(mGridInChunks, mChunkSize);
-        mGrid.ReadFromSDFGenerator();
-        mRenderQueue.Setup(mGrid);
+        mGrid.ApplyToChunks(SDFGenerator.Sample);
+        mRenderQueue = new RenderQueueMono(mGrid);
+        mRenderQueueMulti = new RenderQueue(mGrid);
+        InitWorld();
 
-
-        sw.Stop();
-        UnityEngine.Debug.Log($"[SurfaceNets] TERRAIN SAMPLER: {sw.Elapsed.TotalMilliseconds:F3} ms");
-        sw = Stopwatch.StartNew();
-
-        if (true) BuildSurfaceNets();
-
-        sw.Stop();
-        UnityEngine.Debug.Log($"[SurfaceNets] MESH BUILDER: {sw.Elapsed.TotalMilliseconds:F3} ms");
-
-
-
+        #region Vigilante Lod Code
         // 2. Inicializar el Decimator (Cerebro)
         mDecimator = new DecimationManager();
         mDecimator.Setup(mRenderQueue, mSurfaceNetQEF);
@@ -88,6 +83,27 @@ public class World : MonoBehaviour
         // INVOCACIÓN CORRECTA:
         // Le pasamos el mCTS.Token para que el Vigilante sepa cuándo morir
         Task.Run(() => mVigilante.Run(mCTS.Token), mCTS.Token);
+
+        #endregion
+    }
+
+
+    void InitWorld()
+    {
+        mMeshGenerator = mSurfaceNetQEF;
+
+        for (int i = 0; i < mGrid.mChunks.Length; i++)
+        {
+            Chunk vChunk = mGrid.mChunks[i];
+            vChunk.PrepareView(mGrid.mWorldRoot.transform, mSurfaceMaterial);
+            mRenderQueueMulti.Enqueue(vChunk, mMeshGenerator);
+        }
+
+        mRenderQueueMulti.ProcessParallel(-1);
+
+        while (mRenderQueueMulti.mResultsLOD.TryDequeue(out var vResultLOD))
+            mRenderQueueMulti.Apply(vResultLOD.Key, vResultLOD.Value);
+        //mRenderQueue.ProcessSequential();
     }
 
     public void ExecuteModification(Vector3 pHitPoint, Vector3 pHitNormal, byte pNewValue)
@@ -111,135 +127,64 @@ public class World : MonoBehaviour
         }
 
         //mRenderQueue.ProcessParallel();
-        mRenderQueue.ProcessSequential();
+        //mRenderQueue.ProcessSequential();
     }
 
     void Update()
     {
-        // Alimentamos la sonda con la posición actual de forma segura
+        // 0. ACTUALIZAR POSICIÓN DE CÁMARA
         if (mVigilante != null && mCamera != null)
         {
-            //mVigilante.vCurrentCamPos = mCamera.transform.position;
+            mVigilante.vCurrentCamPos = mCamera.transform.position;
         }
 
-        // 0. RESAMPLE PENDIENTE (datos listos antes de encolar remesh; evita grietas)
+        // 1. RESAMPLE PENDIENTE (SDF Sampling)
+        // El decimator ahora es el ÚNICO que hace Redim y Sample.
+        // Al terminar, el propio decimator mete el chunk en mRenderQueue.mQueue.
         if (mDecimator != null)
             mDecimator.ProcessPendingResamples(mChunksPerFrame);
 
-        // 1. APLICAR RESULTADOS: primero todos los LOD (geometría por distancia), luego hasta 8 de la cola inicial
-        // Sin esto, los 128 resultados de BuildSurfaceNets retrasan la visualización de niveles de detalle
-        while (mRenderQueue.mResultsLOD.TryDequeue(out var vResultLOD))
-            mRenderQueue.Apply(vResultLOD.Key, vResultLOD.Value);
-        for (int i = 0; i < 8; i++)
-        {
-            if (!mRenderQueue.mResults.TryDequeue(out var vResult)) break;
-            mRenderQueue.Apply(vResult.Key, vResult.Value);
-        }
-
-        // 2. GESTIÓN DE PROCESAMIENTO GRADUAL
-        int vQueueCount = mRenderQueue.mQueue.Count;
-
-        if (vQueueCount > 0)
-            mTimer += Time.deltaTime;
-        else
-            mTimer = 0f;
-
-        // DECISIÓN: ¿Iniciamos el procesamiento? (con mMinQueueToProcess=1, arranca en cuanto hay LOD pendiente)
-        if (!mIsProcessing && vQueueCount > 0)
-        {
-            if (vQueueCount >= mMinQueueToProcess || mTimer >= mMaxWaitTime)
-            {
-                // Transferimos la cola principal al buffer de procesamiento
-                while (mRenderQueue.mQueue.Count > 0)
-                {
-                    mProcessingBuffer.Enqueue(mRenderQueue.mQueue.Dequeue());
-                }
-                mRenderQueue.mInWait.Clear();
-                mIsProcessing = true;
-                mTimer = 0f;
-
-                UnityEngine.Debug.Log($"[World] Iniciando procesamiento de {mProcessingBuffer.Count} chunks de forma gradual");
-            }
-        }
-
-        // 3. PROCESAMIENTO GRADUAL (distribuido en el tiempo)
-        if (mIsProcessing && mProcessingBuffer.Count > 0)
+        // 2. PROCESAMIENTO DE GEOMETRÍA (Mallas)
+        // Procesamos de forma gradual para no bloquear el frame.
+        if (mRenderQueue.mQueue.Count > 0)
         {
             Stopwatch sw = Stopwatch.StartNew();
             int chunksProcessed = 0;
 
-            // Procesamos chunks hasta alcanzar el límite de tiempo o chunks por frame
-            while (mProcessingBuffer.Count > 0 &&
+            // Extraemos directamente de la cola principal, eliminando buffers intermedios
+            while (mRenderQueue.mQueue.Count > 0 &&
                    chunksProcessed < mChunksPerFrame &&
                    sw.Elapsed.TotalMilliseconds < mMaxMillisecondsPerFrame)
             {
-                RenderRequest vRequest = mProcessingBuffer.Dequeue();
-                Chunk vChunk = vRequest.chunk;
+                RenderJob vJob = mRenderQueue.mQueue.Dequeue();
 
-                // --- GESTIÓN DE RESOLUCIÓN (LOD) ---
-                if (vChunk.mTargetSize > 0 && !vChunk.mIsEdited)
-                {
-                    vChunk.Redim(vChunk.mTargetSize);
-                    SDFGenerator.Sample(vChunk);
-                }
-
-                // --- GENERACIÓN DE MALLA ---
-                MeshData vData = vRequest.generator.Generate(
-                    vChunk,
+                // Generamos la malla (sin volver a hacer Sample, el dato ya está listo)
+                MeshData vData = vJob.mMeshGenerator.Generate(
+                    vJob.mChunk,
                     mGrid.mChunks,
                     mGrid.mSizeInChunks
                 );
 
-                vChunk.mTargetSize = 0;
+                // Almacenamos en mResults para su aplicación
+                mRenderQueue.mResults.Enqueue(new KeyValuePair<Chunk, MeshData>(vJob.mChunk, vData));
 
-                KeyValuePair<Chunk, MeshData> vResultado = new KeyValuePair<Chunk, MeshData>(vChunk, vData);
-                mRenderQueue.mResultsLOD.Enqueue(vResultado);
-
+                // Liberamos el estado de espera en la cola
+                mRenderQueue.mInWait.Remove(vJob.mChunk);
                 chunksProcessed++;
             }
-
-            sw.Stop();
-
-            // Log de progreso (opcional, comenta si genera spam)
-            if (chunksProcessed > 0)
-            {
-                UnityEngine.Debug.Log($"[World] Procesados {chunksProcessed} chunks en {sw.Elapsed.TotalMilliseconds:F2}ms. Quedan {mProcessingBuffer.Count}");
-            }
-
-            // ¿Hemos terminado?
-            if (mProcessingBuffer.Count == 0)
-            {
-                mIsProcessing = false;
-                UnityEngine.Debug.Log("[World] Procesamiento completado");
-            }
         }
-    }
 
-    void BuildSurfaceNets()
-    {
-        mMeshGenerator = mSurfaceNetQEF;
-
-        // 1. Encolamos todos los chunks de forma normal (Main Thread)
-        for (int i = 0; i < mGrid.mChunks.Length; i++)
+        // 3. APLICACIÓN DE MALLAS A UNITY (Main Thread)
+        // Aplicamos los resultados de la generación de mallas a los GameObjects.
+        int appliedThisFrame = 0;
+        while (mRenderQueue.mResults.Count > 0 && appliedThisFrame < 8)
         {
-            Chunk vChunk = mGrid.mChunks[i];
-
-            // Inicializamos el GameObject aquí (Main Thread) porque es seguro
-            if (vChunk.mViewGO == null)
+            if (mRenderQueue.mResults.TryDequeue(out var vResult))
             {
-                vChunk.mViewGO = new GameObject("Chunk_" + vChunk.mCoord, typeof(MeshFilter), typeof(MeshRenderer), typeof(MeshCollider));
-                vChunk.mViewGO.transform.parent = mGrid.mWorldRoot.transform;
-                vChunk.mViewGO.transform.position = (Vector3)vChunk.mWorldOrigin;
-                vChunk.mViewGO.GetComponent<MeshRenderer>().sharedMaterial = mSurfaceMaterial;
+                mRenderQueue.Apply(vResult.Key, vResult.Value);
+                appliedThisFrame++;
             }
-
-            mRenderQueue.Enqueue(vChunk, mMeshGenerator);
         }
-
-        // 2. DISPARAMOS LA PARALELIZACIÓN
-        UnityEngine.Debug.Log("Iniciando generación paralela... Preparate para el error.");
-        //mRenderQueue.ProcessParallel();
-        //mRenderQueue.ProcessSequential();
     }
 
     void OnDisable()

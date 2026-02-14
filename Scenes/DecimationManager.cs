@@ -41,7 +41,7 @@ using System.Collections.Generic;
 
 public class DecimationManager
 {
-    private RenderQueueMonohilo mRenderQueue;
+    private RenderQueueMono mRenderQueue;
     private MeshGenerator mGenerator;
 
     /// <summary>
@@ -50,7 +50,7 @@ public class DecimationManager
     /// </summary>
     private Dictionary<Chunk, int> mPendingResamples = new Dictionary<Chunk, int>();
 
-    public void Setup(RenderQueueMonohilo pQueue, MeshGenerator pGenerator)
+    public void Setup(RenderQueueMono pQueue, MeshGenerator pGenerator)
     {
         mRenderQueue = pQueue;
         mGenerator = pGenerator;
@@ -64,8 +64,8 @@ public class DecimationManager
     {
         if (pChunk == null || pChunk.mIsEdited) return;
 
-        int currentRes = Mathf.RoundToInt(Mathf.Pow(pChunk.mVoxels.Length, 1f / 3f));
-        if (currentRes == pTargetRes) return;
+        //int currentRes = Mathf.RoundToInt(Mathf.Pow(pChunk.mVoxels.Length, 1f / 3f));
+        //if (currentRes == pTargetRes) return;
 
         pChunk.mTargetSize = pTargetRes;
         pChunk.mAwaitingResample = true;
@@ -91,18 +91,40 @@ public class DecimationManager
 
         foreach (var t in toProcess)
         {
-            mPendingResamples.Remove(t.chunk);
+            mPendingResamples.Remove(t.chunk);  //remover sin procesar no es el mejor habito
             t.chunk.Redim(t.targetRes);
             SDFGenerator.Sample(t.chunk);
             t.chunk.mAwaitingResample = false;
             t.chunk.mTargetSize = 0; // Cascada de datos terminada; remesh aplicará la geometría
+            //mTargetSize a 0, debe ser bandera de chunk listo, vigilante a 0 lo volvera a detectar
             mRenderQueue.Enqueue(t.chunk, mGenerator);
+            //2 error, da por sentado de que los datos de un voxel son coherentes y estables por haberle actualizado
+            //sus densidades de acuerdo a la nueva resolucion, pero para que el proceso de remesh se haba sobre datos
+            //limpios, el voxel tiene que tener datos actualizados Y sus VECINOS NO PUEDEN ESTAR MARCADOS PARA CAMBIO DE LOD,
+            //al ser este proceso asincrono, vecinos de este mismo voxel pueden estar justo despues de el en la cola, y se
+            //remuestrearan en el siguiente frame, entramos en race condition, si el remesh calcula la mesh, antes que los vecinos
+            //actualicen, grietas intraLOD. Estrategia, buscar vecinos, no puede ser una lista, si no hay se envia a remesh,
+            //si mueven de posicion para actualizarse en el siguienmte frame,  la celda en surfacenet consta de 27-1 vecinos, 
+            //eso hace que la atomizacion de este proceso no pueda ser menor de 27
 
             // Debug visual por LOD
             int vBase = VoxelUtils.GetInfoRes(t.targetRes);
             int vLodIndex = (int)VoxelUtils.LOD_DATA[vBase + 3];
-            Color vDebugColor = vLodIndex == 0 ? Color.white : (vLodIndex == 1 ? Color.blue : Color.red);
-            t.chunk.DrawDebug(vDebugColor, 0.5f);
+            Color vDebugColor;
+
+            if (vLodIndex == 0)
+            {
+                vDebugColor = Color.white;
+            }
+            else if (vLodIndex == 1)
+                {
+                    vDebugColor = Color.blue;
+                }
+                else
+                {
+                    vDebugColor = Color.red;
+                }
+         t.chunk.DrawDebug(vDebugColor, 0.5f);
         }
 
         return toProcess.Count;

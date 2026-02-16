@@ -9,6 +9,7 @@ public sealed class Chunk
 
     public readonly Vector3Int mCoord;
     public int mSize;
+    public readonly Grid mGrid;
     public readonly Vector3Int mWorldOrigin;
     /// <summary> 0 = sin marcar. Si &gt; 0, resolución LOD deseada (32/16/8); marca la cascada Redim → Sample → Remesh. </summary>
     public int mTargetSize = 0;
@@ -16,6 +17,9 @@ public sealed class Chunk
     /// <summary> True mientras el chunk está en la cola de resample del DecimationManager.
     /// GetDensityGlobal/IsSolidGlobal usan SDF procedural en lugar del array para evitar grietas. </summary>
     public bool mAwaitingResample = false;
+    public bool mBool1 = false;
+    public bool mBool2 = false;
+    public int mIndex; //Indice para localizar al chunk en el array del grid de datos.
 
     // =========================
     // Datos voxel
@@ -33,10 +37,14 @@ public sealed class Chunk
     // Constructor
     // =========================
 
-    public Chunk(Vector3Int pCoord, int pSize)
+    public Chunk(Vector3Int pCoord, int pSize, Grid pGrid)
     {
         mCoord = pCoord;
         mSize = pSize;
+        mGrid = pGrid;
+
+        // Usamos la fórmula oficial del padre para calcular nuestra posición
+        mIndex = mGrid.ChunkIndex(pCoord.x, pCoord.y, pCoord.z);
 
         mWorldOrigin = new Vector3Int(
             pCoord.x * pSize,
@@ -103,6 +111,12 @@ public sealed class Chunk
         mSize = pSize;
 
         //inconsistency nViewGO logic
+    }
+
+    public void ResetGenericBools()
+    {
+        mBool1 = false;
+        mBool2 = false;
     }
 
     public void ApplyBrush(VoxelBrush pBrush)

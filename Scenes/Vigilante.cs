@@ -120,11 +120,21 @@ public class Vigilante
         while (!pToken.IsCancellationRequested)
         {
             Chunk[] vChunks = mGrid.mChunks;
+            // Referencia directa al array de estados para la comprobación
+            ushort[] vStatus = mGrid.mStatusGrid;
 
             for (int i = 0; i < vChunks.Length; i++)
 
             {
+                // --- FASE 1 & 2: FILTROS DE ESTADO ---
+                ushort status = vStatus[i];
 
+                // 1. Si no tiene superficie, saltamos.
+                if ((status & Grid.BIT_SURFACE) == 0) continue;
+
+                // 2. Si ya se está procesando (IsProcessing), saltamos.
+                // Usamos la máscara MASK_PROCESSING (0x0002)
+                if ((status & Grid.MASK_PROCESSING) != 0) continue;
                 Chunk vChunk = vChunks[i];
 
                 if (vChunk == null) continue;
@@ -149,8 +159,8 @@ public class Vigilante
                 int vTargetRes = (int)VoxelUtils.LOD_DATA[vBase];
                 int vCurrentRes = Mathf.RoundToInt(Mathf.Pow(vChunk.mVoxels.Length, 1f / 3f));
 
-                // No marcar ni encolar hasta que el resample est? listo (DecimationManager.RequestLODChange)
-                if (vCurrentRes != vTargetRes)
+               
+                if (vChunk.mSize != vTargetRes)
                     mDecimator.RequestLODChange(vChunk, vTargetRes);
 
             }

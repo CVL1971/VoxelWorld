@@ -58,6 +58,18 @@ public class RenderQueueMono
             vMc.sharedMesh = vMesh;
         }
 
+        int index = pChunk.mIndex;
+
+        // Leemos el Target que guardó el Vigilante
+        int finalLod = mGrid.GetLodTarget(index);
+
+        // Actualizamos el estado oficial del Chunk
+        mGrid.SetLod(index, finalLod);
+
+        // IMPORTANTE: Liberamos el bit de procesamiento. 
+        // Ahora el Vigilante puede volver a evaluar este chunk.
+        mGrid.SetProcessing(index, false);
+
         // 4. COLOR COHERENTE (Sin ruidos que parpadeen)
         MeshRenderer vMr = pChunk.mViewGO.GetComponent<MeshRenderer>();
         if (vMr != null)

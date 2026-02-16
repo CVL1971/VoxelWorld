@@ -1,8 +1,9 @@
-using UnityEngine;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Threading.Tasks;
 using System.Threading;
+using System.Threading.Tasks;
+using UnityEngine;
+using UnityEngine.Rendering;
 
 public class World : MonoBehaviour
 {
@@ -23,12 +24,12 @@ public class World : MonoBehaviour
     Vector3Int mGridInUnits;
     Vector3Int mGridInChunks;
     Mesh mWorldMesh;
-    RenderQueueMono mRenderQueue;
     RenderQueue mRenderQueueMulti;
+    RenderQueueAsync mRenderQueueAsync;
 
     MeshGenerator mMeshGenerator;
     SurfaceNetsGenerator mSurfaceNet = new SurfaceNetsGenerator();
-    SurfaceNetsGeneratorQEFOriginal mSurfaceNetQEF = new SurfaceNetsGeneratorQEFOriginal();
+    SurfaceNetsGeneratorQEFOriginal2 mSurfaceNetQEF = new SurfaceNetsGeneratorQEFOriginal2();
     private CancellationTokenSource mCTS;
 
     // Los nuevos motores de LOD
@@ -45,6 +46,7 @@ public class World : MonoBehaviour
     private Queue<RenderJob> mProcessingBuffer = new Queue<RenderJob>(); // Cola temporal de procesamiento
 
 
+
     void Start()
     {
         #region Codigo para medir inicializacion.
@@ -55,18 +57,19 @@ public class World : MonoBehaviour
         #endregion
 
         mChunkSize = VoxelUtils.UNIVERSAL_CHUNK_SIZE;
-        mGridInChunks = new Vector3Int(16, 3, 16);
+        mGridInChunks = new Vector3Int(64, 4, 64);
         mGridInUnits = mGridInChunks * mChunkSize;
         mGrid = new Grid(mGridInChunks, mChunkSize);
         mGrid.ApplyToChunks(SDFGenerator.Sample);
-        mRenderQueue = new RenderQueueMono(mGrid);
+        mGrid.ApplyToChunks(mGrid.MarkSurface);
         mRenderQueueMulti = new RenderQueue(mGrid);
+        mRenderQueueAsync = new RenderQueueAsync(mGrid);
         InitWorld();
 
         #region Vigilante Lod Code
         // 2. Inicializar el Decimator (Cerebro)
         mDecimator = new DecimationManager();
-        mDecimator.Setup(mRenderQueue, mSurfaceNetQEF);
+        mDecimator.Setup(mRenderQueueMulti, mSurfaceNetQEF);
 
         // 3. Inicializar el Vigilante (Ojos)
         mVigilante = new Vigilante();
@@ -96,13 +99,13 @@ public class World : MonoBehaviour
         {
             Chunk vChunk = mGrid.mChunks[i];
             vChunk.PrepareView(mGrid.mWorldRoot.transform, mSurfaceMaterial);
-            mRenderQueueMulti.Enqueue(vChunk, mMeshGenerator);
+            mRenderQueueAsync.Enqueue(vChunk, mMeshGenerator);
         }
 
-        mRenderQueueMulti.ProcessParallel(-1);
+        //mRenderQueueMulti.ProcessParallel(-1);
 
-        while (mRenderQueueMulti.mResultsLOD.TryDequeue(out var vResultLOD))
-            mRenderQueueMulti.Apply(vResultLOD.Key, vResultLOD.Value);
+        //while (mRenderQueueMulti.mResultsLOD.TryDequeue(out var vResultLOD))
+        //    mRenderQueueMulti.Apply(vResultLOD.Key, vResultLOD.Value);
         //mRenderQueue.ProcessSequential();
     }
 
@@ -120,10 +123,10 @@ public class World : MonoBehaviour
             Chunk vChunk = mGrid.mChunks[vIndex];
 
             // Aquí centralizamos la orden de renderizado
-            if (mRenderQueue != null)
-            {
-                mRenderQueue.Enqueue(vChunk, mSurfaceNet);
-            }
+            //if (mRenderQueue != null)
+            //{
+            //    mRenderQueue.Enqueue(vChunk, mSurfaceNet);
+            //}
         }
 
         //mRenderQueue.ProcessParallel();
@@ -132,58 +135,47 @@ public class World : MonoBehaviour
 
     void Update()
     {
-        // 0. ACTUALIZAR POSICIÓN DE CÁMARA
+
+        int appliedThisFrame = 0;
+        //// 0. ACTUALIZAR POSICIÓN DE CÁMARA
         if (mVigilante != null && mCamera != null)
         {
             mVigilante.vCurrentCamPos = mCamera.transform.position;
         }
 
+        appliedThisFrame = 0;
+        if (appliedThisFrame < 16)
+        {
+            if (mRenderQueueAsync.mResultsLOD.TryDequeue(out var r))
+            {
+                mRenderQueueAsync.Apply(r.Key, r.Value);
+                appliedThisFrame++;
+            }
+            
+        }
         // 1. RESAMPLE PENDIENTE (SDF Sampling)
-        // El decimator ahora es el ÚNICO que hace Redim y Sample.
-        // Al terminar, el propio decimator mete el chunk en mRenderQueue.mQueue.
+        // El decimator hace el Sample y ahora Encola en la cola MULTIHILO
         if (mDecimator != null)
             mDecimator.ProcessPendingResamples(mChunksPerFrame);
 
-        // 2. PROCESAMIENTO DE GEOMETRÍA (Mallas)
-        // Procesamos de forma gradual para no bloquear el frame.
-        if (mRenderQueue.mQueue.Count > 0)
+        // 2. PROCESAMIENTO MULTIHILO (Delegamos la carga pesada)
+        // Usamos el 50% de los hilos (0 = hilos lógicos - 1, o un número específico)
+        //nThreads: 0 o Environment.ProcessorCount / 2
+        int hilosAUsar = Mathf.Max(1, System.Environment.ProcessorCount / 2);
+        mRenderQueueMulti.ProcessParallel(hilosAUsar);
+
+        // 3. APLICACIÓN DE RESULTADOS (Main Thread)
+        // Consumimos los resultados que el proceso paralelo ha ido dejando en mResultsLOD
+        appliedThisFrame = 0;
+        if (appliedThisFrame < 8)
         {
-            Stopwatch sw = Stopwatch.StartNew();
-            int chunksProcessed = 0;
-
-            // Extraemos directamente de la cola principal, eliminando buffers intermedios
-            while (mRenderQueue.mQueue.Count > 0 &&
-                   chunksProcessed < mChunksPerFrame &&
-                   sw.Elapsed.TotalMilliseconds < mMaxMillisecondsPerFrame)
+            if (mRenderQueueMulti.mResultsLOD.TryDequeue(out var vResult))
             {
-                RenderJob vJob = mRenderQueue.mQueue.Dequeue();
-
-                // Generamos la malla (sin volver a hacer Sample, el dato ya está listo)
-                MeshData vData = vJob.mMeshGenerator.Generate(
-                    vJob.mChunk,
-                    mGrid.mChunks,
-                    mGrid.mSizeInChunks
-                );
-
-                // Almacenamos en mResults para su aplicación
-                mRenderQueue.mResults.Enqueue(new KeyValuePair<Chunk, MeshData>(vJob.mChunk, vData));
-
-                // Liberamos el estado de espera en la cola
-                mRenderQueue.mInWait.Remove(vJob.mChunk);
-                chunksProcessed++;
-            }
-        }
-
-        // 3. APLICACIÓN DE MALLAS A UNITY (Main Thread)
-        // Aplicamos los resultados de la generación de mallas a los GameObjects.
-        int appliedThisFrame = 0;
-        while (mRenderQueue.mResults.Count > 0 && appliedThisFrame < 8)
-        {
-            if (mRenderQueue.mResults.TryDequeue(out var vResult))
-            {
-                mRenderQueue.Apply(vResult.Key, vResult.Value);
+                mRenderQueueMulti.Apply(vResult.Key, vResult.Value);
                 appliedThisFrame++;
             }
+
+
         }
     }
 

@@ -36,21 +36,22 @@
 
 //*****************************************************************************
 
-using UnityEngine;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
+using UnityEngine;
 
 public class DecimationManager
 {
-    private RenderQueueMono mRenderQueue;
+    private RenderQueue mRenderQueue;
     private MeshGenerator mGenerator;
 
     /// <summary>
     /// Chunks pendientes de resample. No se encolan para remesh hasta que sus
     /// densidades est?n muestreadas para el LOD deseado (evita grietas inter-chunk).
     /// </summary>
-    private Dictionary<Chunk, int> mPendingResamples = new Dictionary<Chunk, int>();
+    private ConcurrentDictionary<Chunk, int> mPendingResamples = new ConcurrentDictionary<Chunk, int>();
 
-    public void Setup(RenderQueueMono pQueue, MeshGenerator pGenerator)
+    public void Setup(RenderQueue pQueue, MeshGenerator pGenerator)
     {
         mRenderQueue = pQueue;
         mGenerator = pGenerator;
@@ -91,7 +92,10 @@ public class DecimationManager
 
         foreach (var t in toProcess)
         {
-            mPendingResamples.Remove(t.chunk);  //remover sin procesar no es el mejor habito
+            // 2. CORRECCIÓN DEL ERROR CS7036:
+            // TryRemove requiere un segundo parámetro 'out' para devolver el valor eliminado.
+            // Usamos '_' (discard) porque no necesitamos ese valor para nada.
+            mPendingResamples.TryRemove(t.chunk, out _);
             t.chunk.Redim(t.targetRes);
             SDFGenerator.Sample(t.chunk);
             t.chunk.mAwaitingResample = false;

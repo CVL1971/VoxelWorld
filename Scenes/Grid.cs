@@ -4,10 +4,21 @@ using System.Collections.Generic;
 public class Grid
 {
     public readonly Chunk[] mChunks;
+    public readonly ushort[] mStatusGrid;
     public readonly Vector3Int mSizeInChunks;
     public readonly int mChunkSize;
     public GameObject mWorldRoot;
     public delegate void ChunkAction(Chunk chunk);
+
+    // MÁSCARAS DE BITS (Estructura de 16 bits)
+
+    public const ushort BIT_SURFACE = 0x0001; // Bit 0
+    public const ushort MASK_PROCESSING = 0x0002; // Bit 1
+    public const ushort MASK_LOD_CURRENT = 0x000C; // Bits 2-3 (1100)
+    public const ushort MASK_LOD_TARGET = 0x0030; // Bits 4-5 (110000)
+
+    private const int SHIFT_LOD_CURRENT = 2;
+    private const int SHIFT_LOD_TARGET = 4;
 
     public Grid(Vector3Int pSizeInChunks, int pChunkSize)
     {
@@ -22,6 +33,7 @@ public class Grid
            mSizeInChunks.z;
 
         mChunks = new Chunk[chunkCount];
+        mStatusGrid = new ushort[chunkCount];
 
         for (int z = 0; z < mSizeInChunks.z; z++)
             for (int y = 0; y < mSizeInChunks.y; y++)
@@ -29,25 +41,51 @@ public class Grid
                 {
                     Vector3Int coord = new Vector3Int(x, y, z);
                     int index = ChunkIndex(x, y, z);
-                    mChunks[index] = new Chunk(coord, mChunkSize);
+                    mChunks[index] = new Chunk(coord, mChunkSize, this);
+                    mStatusGrid[index] = 0; // Inicialmente todo a 0
                 }
 
     }
 
-    public void ApplyToChunks(ChunkAction pMethod) 
+
+    public void MarkSurface(Chunk pChunk)
+    {
+        Surface(pChunk.mCoord, pChunk.mBool1 && pChunk.mBool2);
+    }
+
+    public bool Surface(int pIndex)
+    {
+        return (mStatusGrid[pIndex] & BIT_SURFACE) != 0;
+    }
+
+
+    public void Surface(int pIndex, bool pValue)
+    {
+
+        byte vBitValue = System.Convert.ToByte(pValue);
+        mStatusGrid[pIndex] = (ushort)((mStatusGrid[pIndex] & ~BIT_SURFACE) | vBitValue);
+    }
+
+    public void Surface(Vector3Int vCoords, bool pValue)
+    {
+        byte vBitValue = System.Convert.ToByte(pValue);
+        int pIndex = ChunkIndex(vCoords.x, vCoords.y, vCoords.z);
+        mStatusGrid[pIndex] = (ushort)((mStatusGrid[pIndex] & ~BIT_SURFACE) | vBitValue);
+    }
+
+    public int ChunkIndex(int x, int y, int z)
+    {
+        return x + mSizeInChunks.x * (y + mSizeInChunks.y * z);
+    }
+
+    public void ApplyToChunks(ChunkAction pMethod)
     {
 
         // 1. Calcula el ruido Perlin 2D, densidades y solidez
         foreach (Chunk chunk in mChunks) pMethod(chunk);
-     
-}
 
-    int ChunkIndex(int x, int y, int z)
-    {
-        return x +
-               mSizeInChunks.x *
-               (y + mSizeInChunks.y * z);
     }
+
 
     public void EmptyChunksInstances()
     {
@@ -69,7 +107,8 @@ public class Grid
 
     }
 
-    public HashSet<int> ModifyWorld(VoxelBrush pBrush)
+
+public HashSet<int> ModifyWorld(VoxelBrush pBrush)
     {
         HashSet<int> vAffectedChunks = new HashSet<int>();
 
@@ -121,6 +160,46 @@ public class Grid
                 }
 
         return vAffectedChunks;
+    }
+
+    public bool IsProcessing(int index)
+    {
+        return (mStatusGrid[index] & MASK_PROCESSING) != 0;
+    }
+
+    public void SetProcessing(int index, bool value)
+    {
+        if (value)
+        {
+            mStatusGrid[index] = (ushort)(mStatusGrid[index] | MASK_PROCESSING);
+        }
+        else
+        {
+            mStatusGrid[index] = (ushort)(mStatusGrid[index] & ~MASK_PROCESSING);
+        }
+    }
+
+    public int GetLod(int index)
+    {
+        return (mStatusGrid[index] & MASK_LOD_CURRENT) >> SHIFT_LOD_CURRENT;
+    }
+
+    public void SetLod(int index, int lodValue)
+    {
+        // Limpiamos los bits antiguos y ponemos los nuevos
+        ushort cleared = (ushort)(mStatusGrid[index] & ~MASK_LOD_CURRENT);
+        mStatusGrid[index] = (ushort)(cleared | (ushort)(lodValue << SHIFT_LOD_CURRENT));
+    }
+
+    public int GetLodTarget(int index)
+    {
+        return (mStatusGrid[index] & MASK_LOD_TARGET) >> SHIFT_LOD_TARGET;
+    }
+
+    public void SetLodTarget(int index, int lodValue)
+    {
+        ushort cleared = (ushort)(mStatusGrid[index] & ~MASK_LOD_TARGET);
+        mStatusGrid[index] = (ushort)(cleared | (ushort)(lodValue << SHIFT_LOD_TARGET));
     }
 
 

@@ -22,6 +22,7 @@ public static class SDFGenerator
         // 2. Calculamos el paso físico (vStep)
         // Usamos UNIVERSAL_CHUNK_SIZE (32) porque es lo que mide el chunk en el mundo
         float vStep = (float)VoxelUtils.UNIVERSAL_CHUNK_SIZE / (float)res;
+        pChunk.ResetGenericBools();
 
         // 3. Los bucles ahora van de 0 a la resolución real detectada
         // IMPORTANTE para las Seams: Para cerrar el borde con el vecino, 
@@ -46,14 +47,17 @@ public static class SDFGenerator
                     if (density >= ISO_SURFACE)
                     {
                         pChunk.SetSolid(x, y, z, 1);
+                        pChunk.mBool1 = true;
                     }
                     else
                     {
                         pChunk.SetSolid(x, y, z, 0);
+                        pChunk.mBool2 = true;
                     }
                 }
             }
         }
+
     }
 
     public static float Sample(Vector3 worldPos)

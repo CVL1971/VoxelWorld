@@ -7,38 +7,35 @@ public class SurfaceNetsGeneratorQEF3caches : MeshGenerator
 
     public override MeshData Generate(Chunk pChunk, Chunk[] allChunks, Vector3Int worldSize)
     {
-        System.Diagnostics.Stopwatch vWatch = new System.Diagnostics.Stopwatch();
-        vWatch.Restart();
-        // Se cambia pChunk.mTargetSize por pChunk.mSize
         int size = pChunk.mSize <= 0 ? VoxelUtils.UNIVERSAL_CHUNK_SIZE : pChunk.mSize;
         int lodIndex = VoxelUtils.GetInfoRes(size);
         float vStep = VoxelUtils.LOD_DATA[lodIndex + 1];
 
         MeshData meshData = new MeshData();
 
-      
-        int padded = size + 2;
-        float[,,] localCache = new float[padded, padded, padded];
+        // 1. SELECCIÓN DE CACHÉ SEGÚN LOD
+        float[] cache = (lodIndex == 0) ? pChunk.mSample0 :
+                        (lodIndex == 4) ? pChunk.mSample1 : pChunk.mSample2;
 
-        for (int z = 0; z < padded; z++)
-            for (int y = 0; y < padded; y++)
-                for (int x = 0; x < padded; x++)
-                {
-                    localCache[x, y, z] = pChunk.GetDensity(x, y, z);
-                }
+        if (cache == null) return meshData;
 
-
-        int[,,] vmap = new int[size + 1, size + 1, size + 1];
+        int p = size + 2; // Resolución con padding
 
         // 2. FASE DE VÉRTICES
+        int[,,] vmap = new int[size + 1, size + 1, size + 1];
+
         for (int z = 0; z <= size; z++)
             for (int y = 0; y <= size; y++)
                 for (int x = 0; x <= size; x++)
                 {
-                    if (CellCrossesIso(localCache, x, y, z, ISO_THRESHOLD))
+                    // Llamada corregida con 'p' y 'ISO_THRESHOLD'
+                    if (CellCrossesIso(cache, x, y, z, p, ISO_THRESHOLD))
                     {
                         vmap[x, y, z] = meshData.vertices.Count;
-                        Vector3 localPos = ComputeCellVertexQEF(localCache, x, y, z, ISO_THRESHOLD, vStep);
+
+                        // LLAMADA CORREGIDA: Ahora pasamos vStep al final
+                        Vector3 localPos = ComputeCellVertexQEF(cache, x, y, z, p, ISO_THRESHOLD, vStep);
+
                         meshData.vertices.Add(localPos);
 
                         Vector3 worldPos = (Vector3)pChunk.mWorldOrigin + localPos;
@@ -52,50 +49,64 @@ public class SurfaceNetsGeneratorQEF3caches : MeshGenerator
             for (int y = 0; y <= size; y++)
                 for (int x = 0; x <= size; x++)
                 {
-                    EmitCorrectFaces(localCache, x, y, z, ISO_THRESHOLD, vmap, meshData.triangles, size);
+                    EmitCorrectFaces(cache, x, y, z, p, ISO_THRESHOLD, vmap, meshData.triangles, size);
                 }
 
-        vWatch.Stop();
-        Debug.Log($"[Remesh] time: {vWatch.Elapsed.TotalMilliseconds:F4} ms");
         return meshData;
     }
 
-    protected Vector3 ComputeCellVertexQEF(float[,,] cache, int x, int y, int z, float iso, float vStep)
+    private float GetD(float[] c, int x, int y, int z, int p)
     {
-        Vector3 massPoint = Vector3.zero; int count = 0;
-        void CheckEdge(int x0, int y0, int z0, int x1, int y1, int z1)
-        {
-            float d0 = cache[x0, y0, z0], d1 = cache[x1, y1, z1];
-            if ((d0 < iso && d1 >= iso) || (d0 >= iso && d1 < iso))
-            {
-                float t = Mathf.Clamp01((iso - d0) / (d1 - d0 + 0.00001f));
-                massPoint += Vector3.Lerp(new Vector3(x0, y0, z0) * vStep, new Vector3(x1, y1, z1) * vStep, t);
-                count++;
-            }
-        }
-        CheckEdge(x, y, z, x + 1, y, z); CheckEdge(x, y + 1, z, x + 1, y + 1, z); CheckEdge(x, y, z + 1, x + 1, y, z + 1); CheckEdge(x, y + 1, z + 1, x + 1, y + 1, z + 1);
-        CheckEdge(x, y, z, x, y + 1, z); CheckEdge(x + 1, y, z, x + 1, y + 1, z); CheckEdge(x, y, z + 1, x, y + 1, z + 1); CheckEdge(x + 1, y, z + 1, x + 1, y + 1, z + 1);
-        CheckEdge(x, y, z, x, y, z + 1); CheckEdge(x + 1, y, z, x + 1, y, z + 1); CheckEdge(x, y + 1, z, x, y + 1, z + 1); CheckEdge(x + 1, y + 1, z, x + 1, y + 1, z + 1);
-        return count > 0 ? massPoint / count : new Vector3(x + 0.5f, y + 0.5f, z + 0.5f) * vStep;
+        return c[(x + 1) + p * ((y + 1) + p * (z + 1))];
     }
 
-    protected bool CellCrossesIso(float[,,] cache, int x, int y, int z, float iso)
+    protected bool CellCrossesIso(float[] cache, int x, int y, int z, int p, float iso)
     {
-        bool first = cache[x, y, z] >= iso;
+        bool first = GetD(cache, x, y, z, p) >= iso;
         for (int i = 1; i < 8; i++)
         {
-            float d = cache[x + (i & 1), y + ((i >> 1) & 1), z + ((i >> 2) & 1)];
+            float d = GetD(cache, x + (i & 1), y + ((i >> 1) & 1), z + ((i >> 2) & 1), p);
             if ((d >= iso) != first) return true;
         }
         return false;
     }
 
-    protected void EmitCorrectFaces(float[,,] cache, int x, int y, int z, float iso, int[,,] vmap, List<int> tris, int size)
+    protected Vector3 ComputeCellVertexQEF(float[] cache, int x, int y, int z, int p, float iso, float vStep)
     {
-        float d0 = cache[x, y, z];
+        Vector3 massPoint = Vector3.zero;
+        int count = 0;
+
+        void CheckEdge(int x0, int y0, int z0, int x1, int y1, int z1)
+        {
+            float d0 = GetD(cache, x0, y0, z0, p);
+            float d1 = GetD(cache, x1, y1, z1, p);
+
+            if ((d0 < iso && d1 >= iso) || (d0 >= iso && d1 < iso))
+            {
+                float t = Mathf.Clamp01((iso - d0) / (d1 - d0 + 0.000001f));
+
+                // Aplicamos el desfase -1 para alinear con el padding
+                Vector3 p0 = new Vector3(x0 - 1, y0 - 1, z0 - 1) * vStep;
+                Vector3 p1 = new Vector3(x1 - 1, y1 - 1, z1 - 1) * vStep;
+
+                massPoint += Vector3.Lerp(p0, p1, t);
+                count++;
+            }
+        }
+
+        CheckEdge(x, y, z, x + 1, y, z); CheckEdge(x, y + 1, z, x + 1, y + 1, z); CheckEdge(x, y, z + 1, x + 1, y, z + 1); CheckEdge(x, y + 1, z + 1, x + 1, y + 1, z + 1);
+        CheckEdge(x, y, z, x, y + 1, z); CheckEdge(x + 1, y, z, x + 1, y + 1, z); CheckEdge(x, y, z + 1, x, y + 1, z + 1); CheckEdge(x + 1, y, z + 1, x + 1, y + 1, z + 1);
+        CheckEdge(x, y, z, x, y, z + 1); CheckEdge(x + 1, y, z, x + 1, y, z + 1); CheckEdge(x, y + 1, z, x, y + 1, z + 1); CheckEdge(x + 1, y + 1, z, x + 1, y + 1, z + 1);
+
+        return count > 0 ? massPoint / count : new Vector3(x + 0.5f - 1f, y + 0.5f - 1f, z + 0.5f - 1f) * vStep;
+    }
+
+    protected void EmitCorrectFaces(float[] cache, int x, int y, int z, int p, float iso, int[,,] vmap, List<int> tris, int size)
+    {
+        float d0 = GetD(cache, x, y, z, p);
         if (x < size)
         {
-            float d1 = cache[x + 1, y, z];
+            float d1 = GetD(cache, x + 1, y, z, p);
             if ((d0 >= iso) != (d1 >= iso) && y > 0 && z > 0)
             {
                 int v0 = vmap[x, y - 1, z - 1], v1 = vmap[x, y, z - 1], v2 = vmap[x, y, z], v3 = vmap[x, y - 1, z];
@@ -104,7 +115,7 @@ public class SurfaceNetsGeneratorQEF3caches : MeshGenerator
         }
         if (y < size)
         {
-            float d1 = cache[x, y + 1, z];
+            float d1 = GetD(cache, x, y + 1, z, p);
             if ((d0 >= iso) != (d1 >= iso) && x > 0 && z > 0)
             {
                 int v0 = vmap[x - 1, y, z - 1], v1 = vmap[x, y, z - 1], v2 = vmap[x, y, z], v3 = vmap[x - 1, y, z];
@@ -113,7 +124,7 @@ public class SurfaceNetsGeneratorQEF3caches : MeshGenerator
         }
         if (z < size)
         {
-            float d1 = cache[x, y, z + 1];
+            float d1 = GetD(cache, x, y, z + 1, p);
             if ((d0 >= iso) != (d1 >= iso) && x > 0 && y > 0)
             {
                 int v0 = vmap[x - 1, y - 1, z], v1 = vmap[x, y - 1, z], v2 = vmap[x, y, z], v3 = vmap[x - 1, y, z];

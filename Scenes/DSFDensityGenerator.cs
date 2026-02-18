@@ -1,4 +1,5 @@
 using UnityEngine;
+using System.IO;
 
 public static class SDFGenerator
 {
@@ -13,35 +14,29 @@ public static class SDFGenerator
 
     public static void Sample(Chunk pChunk)
     {
-        // 1. Deducimos la resolución real a partir de la longitud del array
-        // mVoxels.Length es: res * res * res. La raíz cúbica nos da la resolución (8, 16 o 32)
         int res = Mathf.RoundToInt(Mathf.Pow(pChunk.mVoxels.Length, 1f / 3f));
-
         Vector3Int origin = pChunk.mWorldOrigin;
-
-        // 2. Calculamos el paso físico (vStep)
-        // Usamos UNIVERSAL_CHUNK_SIZE (32) porque es lo que mide el chunk en el mundo
         float vStep = (float)VoxelUtils.UNIVERSAL_CHUNK_SIZE / (float)res;
         pChunk.ResetGenericBools();
 
-        // 3. Los bucles ahora van de 0 a la resolución real detectada
-        // IMPORTANTE para las Seams: Para cerrar el borde con el vecino, 
-        // deberías considerar llegar a res + 1 si tu array lo permite. 
-        // Si no, lo dejamos en < res para evitar errores de índice.
+        // Movimos los bucles: X y Z afuera para calcular la altura una sola vez por columna
         for (int z = 0; z < res; z++)
         {
-            for (int y = 0; y < res; y++)
+            float worldZ = (float)origin.z + ((float)z * vStep);
+            for (int x = 0; x < res; x++)
             {
-                for (int x = 0; x < res; x++)
+                float worldX = (float)origin.x + ((float)x * vStep);
+
+                // --- OPTIMIZACIÓN CLAVE: Calculamos la altura una vez por columna ---
+                float height = GetGeneratedHeight(worldX, worldZ);
+
+                for (int y = 0; y < res; y++)
                 {
-                    // La posición en el mundo escala según el paso
-                    float worldX = (float)origin.x + ((float)x * vStep);
                     float worldY = (float)origin.y + ((float)y * vStep);
-                    float worldZ = (float)origin.z + ((float)z * vStep);
 
-                    float density = Sample(new Vector3(worldX, worldY, worldZ));
+                    // Calculamos densidad directamente sin volver a ejecutar el ruido
+                    float density = Mathf.Clamp01((height - worldY) * SMOOTHNESS + ISO_SURFACE);
 
-                    // Guardamos usando los índices locales (0 a res-1)
                     pChunk.SetDensity(x, y, z, density);
 
                     if (density >= ISO_SURFACE)
@@ -57,7 +52,6 @@ public static class SDFGenerator
                 }
             }
         }
-
     }
 
     public static float Sample(Vector3 worldPos)
@@ -168,6 +162,82 @@ public static class SDFGenerator
         float dZ = GetRawDistance(new Vector3(worldPos.x, worldPos.y, worldPos.z + h)) - GetRawDistance(new Vector3(worldPos.x, worldPos.y, worldPos.z - h));
         return new Vector3(dX, dY, dZ).normalized;
     }
+
+    /// <summary>
+    /// Carga un Heightmap (EXR/PNG/JPG) y reconstruye densidades con interpolación.
+    /// </summary>
+    public static void LoadHeightmapToGrid(Grid pGrid, string filePath = @"E:\maps\1.exr")
+    {
+        if (!File.Exists(filePath))
+        {
+            Debug.LogError("No existe el archivo en " + filePath);
+            return;
+        }
+
+        byte[] bytes = File.ReadAllBytes(filePath);
+        Texture2D tex = new Texture2D(2, 2, TextureFormat.RFloat, false, true);
+        tex.LoadImage(bytes);
+        tex.filterMode = FilterMode.Bilinear; // Suavizado entre píxeles
+
+        int res = Mathf.RoundToInt(Mathf.Pow(pGrid.mChunks[0].mVoxels.Length, 1f / 3f));
+        float maxHeight = pGrid.mSizeInChunks.y * VoxelUtils.UNIVERSAL_CHUNK_SIZE;
+        float vStep = (float)VoxelUtils.UNIVERSAL_CHUNK_SIZE / res;
+
+        int texW = tex.width;
+        int texH = tex.height;
+
+        for (int cz = 0; cz < pGrid.mSizeInChunks.z; cz++)
+        {
+            for (int cx = 0; cx < pGrid.mSizeInChunks.x; cx++)
+            {
+                for (int cy = 0; cy < pGrid.mSizeInChunks.y; cy++)
+                {
+                    int chunkIdx = cx + (cy * pGrid.mSizeInChunks.x) + (cz * pGrid.mSizeInChunks.x * pGrid.mSizeInChunks.y);
+                    Chunk chunk = pGrid.mChunks[chunkIdx];
+                    chunk.ResetGenericBools();
+
+                    for (int vz = 0; vz < res; vz++)
+                    {
+                        for (int vx = 0; vx < res; vx++)
+                        {
+                            int px = (cx * res) + vx;
+                            int pz = (cz * res) + vz;
+
+                            float u = (float)px / (pGrid.mSizeInChunks.x * res);
+                            float v = (float)pz / (pGrid.mSizeInChunks.z * res);
+
+                            float h = tex.GetPixelBilinear(u, v).r * maxHeight;
+
+                            for (int vy = 0; vy < res; vy++)
+                            {
+                                float worldY = (cy * VoxelUtils.UNIVERSAL_CHUNK_SIZE) + (vy * vStep);
+
+                                // Gradiente suave de 0.5f para que las normales se vean con profundidad
+                                float density = Mathf.Clamp01((h - worldY) * 0.5f + 0.5f);
+
+                                chunk.SetDensity(vx, vy, vz, density);
+
+                                if (density >= 0.5f)
+                                {
+                                    chunk.SetSolid(vx, vy, vz, 1);
+                                    chunk.mBool1 = true;
+                                }
+                                else
+                                {
+                                    chunk.SetSolid(vx, vy, vz, 0);
+                                    chunk.mBool2 = true;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Object.DestroyImmediate(tex);
+        Debug.Log("<color=cyan>[Heightmap]</color> Carga 32-bit finalizada.");
+    }
+
 
     //public static void ResampleData(Chunk pChunk)
     //{

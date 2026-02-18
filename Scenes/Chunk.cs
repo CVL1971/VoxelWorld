@@ -166,15 +166,16 @@ public sealed class Chunk
     // Indexación
     // =========================
 
-    int Index(int x, int y, int z)
+    public int Index(int x, int y, int z)
     {
         return x + mSize * (y + mSize * z);
     }
 
-    bool InBounds(int x, int y, int z)
+    public bool InBounds(int x, int y, int z)
     {
-        return !(x < 0 || y < 0 || z < 0 ||
-                 x >= mSize || y >= mSize || z >= mSize);
+        return x >= 0 && x < mSize &&
+        y >= 0 && y < mSize &&
+        z >= 0 && z < mSize;
     }
 
     // =========================
@@ -284,7 +285,7 @@ public sealed class Chunk
         Vector3 max = mWorldOrigin + new Vector3(mSize, mSize, mSize);
 
         // Base (Y inferior)
-        Debug.DrawLine(new Vector3(min.x, min.y, min.z), new Vector3(max.x, min.y, min.z), pColor,pduration);
+        Debug.DrawLine(new Vector3(min.x, min.y, min.z), new Vector3(max.x, min.y, min.z), pColor, pduration);
         Debug.DrawLine(new Vector3(max.x, min.y, min.z), new Vector3(max.x, min.y, max.z), pColor, pduration);
         Debug.DrawLine(new Vector3(max.x, min.y, max.z), new Vector3(min.x, min.y, max.z), pColor, pduration);
         Debug.DrawLine(new Vector3(min.x, min.y, max.z), new Vector3(min.x, min.y, min.z), pColor, pduration);
@@ -302,7 +303,7 @@ public sealed class Chunk
         Debug.DrawLine(new Vector3(min.x, min.y, max.z), new Vector3(min.x, max.y, max.z), pColor, pduration);
     }
 
-   
+
 }
 
 

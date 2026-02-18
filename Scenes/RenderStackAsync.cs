@@ -5,32 +5,34 @@ using System.Threading;
 using System.Threading.Tasks;
 using UnityEngine;
 
-public class RenderQueueAsync
+public class RenderStackAsync
 {
     private readonly Grid mGrid;
 
-    public ConcurrentQueue<RenderJob> mQueue = new();
+    // Cambiado de ConcurrentQueue a ConcurrentStack para prioridad LIFO
+    public ConcurrentStack<RenderJob> mStack = new();
     public ConcurrentDictionary<Chunk, byte> mInWait = new();
     public ConcurrentQueue<KeyValuePair<Chunk, MeshData>> mResultsLOD = new();
 
-    // ---- CONFIGURACIÓN ----
+    // ---- CONFIGURACIÃ“N ----
     private readonly SemaphoreSlim mSlots;
     private int mWorkerRunning = 0;
 
-    public RenderQueueAsync(Grid pGrid, int maxParallel = 10)
+    public RenderStackAsync(Grid pGrid, int maxParallel = 10)
     {
         mGrid = pGrid;
         mSlots = new SemaphoreSlim(maxParallel);
     }
 
-    // ---- ENQUEUE ----
+    // ---- ENQUEUE (Ahora PUSH) ----
     public void Enqueue(Chunk pChunk, MeshGenerator pGenerator)
     {
         if (pChunk == null || pGenerator == null) return;
 
         if (mInWait.TryAdd(pChunk, 0))
         {
-            mQueue.Enqueue(new RenderJob(pChunk, pGenerator));
+            // Usamos Push para que sea el primero en salir
+            mStack.Push(new RenderJob(pChunk, pGenerator));
             StartWorker();
         }
     }
@@ -48,12 +50,13 @@ public class RenderQueueAsync
     {
         while (true)
         {
-            if (!mQueue.TryDequeue(out var job))
+            // Cambiado TryDequeue por TryPop para obtener el Ãºltimo elemento aÃ±adido
+            if (!mStack.TryPop(out var job))
             {
                 mWorkerRunning = 0;
 
-                // si alguien encoló mientras salíamos
-                if (!mQueue.IsEmpty && Interlocked.CompareExchange(ref mWorkerRunning, 1, 0) == 0)
+                // si alguien encolÃ³ mientras salÃ­amos
+                if (!mStack.IsEmpty && Interlocked.CompareExchange(ref mWorkerRunning, 1, 0) == 0)
                     continue;
 
                 return;
@@ -73,16 +76,14 @@ public class RenderQueueAsync
         }
     }
 
-    // ---- EJECUCIÓN REAL ----
+    // ---- EJECUCIÃ“N REAL (Sin cambios) ----
     private void Execute(RenderJob vRequest)
     {
         Chunk vChunk = vRequest.mChunk;
 
-        // LOD
         if (vChunk.mTargetSize > 0)
             vChunk.Redim(vChunk.mTargetSize);
 
-        // Generar malla
         MeshData vData = vRequest.mMeshGenerator.Generate(
             vChunk,
             mGrid.mChunks,
@@ -95,12 +96,11 @@ public class RenderQueueAsync
             mResultsLOD.Enqueue(new KeyValuePair<Chunk, MeshData>(vChunk, vData));
     }
 
-    // Lógica de aplicación original íntegra
+    // LÃ³gica de aplicaciÃ³n original Ã­ntegra (Sin cambios)
     public void Apply(Chunk pChunk, MeshData pData)
     {
         if (pChunk.mViewGO == null) return;
 
-        // 1. GENERACIÓN DE MALLA (Sin cambios)
         Mesh vMesh = new Mesh();
         vMesh.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
         vMesh.SetVertices(pData.vertices);
@@ -112,53 +112,10 @@ public class RenderQueueAsync
         if (vMf.sharedMesh != null) GameObject.Destroy(vMf.sharedMesh);
         vMf.sharedMesh = vMesh;
 
-        //MeshCollider vMc = pChunk.mViewGO.GetComponent<MeshCollider>();
-        //if (vMc != null) vMc.sharedMesh = vMesh;
-
-        // 2. APLICACIÓN DE COLOR ESTABLE
         MeshRenderer vMr = pChunk.mViewGO.GetComponent<MeshRenderer>();
-
         int index = pChunk.mIndex;
-
         int targetLod = (mGrid.mStatusGrid[index] & Grid.MASK_LOD_TARGET) >> 4;
         mGrid.SetLod(index, targetLod);
-
-        // IMPORTANTE: Liberamos el bit de procesamiento. 
-        // Ahora el Vigilante puede volver a evaluar este chunk.
         mGrid.SetProcessing(index, false);
-
-        //if (vMr != null)
-        //{
-        //    MaterialPropertyBlock vPropBlock = new MaterialPropertyBlock();
-
-        //    vMr.GetPropertyBlock(vPropBlock);
-
-        //    // --- CORRECCIÓN DE Z-FIGHTING VISUAL ---
-
-        //    // Calculamos el factor de altura con un pequeño margen para evitar valores extremos (0 o 1)
-        //    float worldHeight = Mathf.Max(1, mGrid.mSizeInChunks.y);
-        //    float heightFactor = (float)pChunk.mCoord.y / worldHeight;
-        //    heightFactor = Mathf.Clamp(heightFactor, 0.01f, 0.99f);
-
-        //    // Usamos un ruido basado en una función de onda suave (Seno/Coseno) 
-        //    // En lugar de Repeat/Multiplicación, esto crea transiciones coherentes entre vecinos
-        //    float seed = (pChunk.mCoord.x * 0.13f) + (pChunk.mCoord.z * 0.17f);
-        //    float waveNoise = (Mathf.Sin(seed) + 1f) * 0.5f; // Normalizado 0 a 1
-
-        //    // Definimos los colores base
-        //    Color colorBajo = new Color(0.1f, 0.4f, 0.1f);
-        //    Color colorAlto = new Color(0.8f, 0.8f, 0.9f);
-
-        //    // MEZCLA FINAL: Aplicamos el ruido al factor de mezcla, NO al color final.
-        //    // Esto hace que el borde sea una transición de color y no un cambio de brillo.
-        //    float finalMix = Mathf.Lerp(heightFactor, waveNoise, 0.05f);
-        //    Color finalColor = Color.Lerp(colorBajo, colorAlto, finalMix);
-
-        //    vPropBlock.SetColor("_BaseColor", finalColor);
-        //    vPropBlock.SetColor("_Color", finalColor);
-        //    vMr.SetPropertyBlock(vPropBlock);
-        //}
     }
-
-
 }

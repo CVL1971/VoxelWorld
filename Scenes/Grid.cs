@@ -47,15 +47,24 @@ public class Grid
 
     }
 
+    public static int ResolutionToLodIndex(int pRes)
+    {
+        // Según tu tabla LOD_DATA: 32 -> Index 0, 16 -> Index 1, 8 -> Index 2
+        if (pRes >= 32) return 0;
+        if (pRes >= 16) return 1;
+        return 2;
+    }
 
     public void MarkSurface(Chunk pChunk)
     {
-        Surface(pChunk.mCoord, pChunk.mBool1 && pChunk.mBool2);
+        Surface(pChunk, pChunk.mBool1 && pChunk.mBool2);
     }
 
     public bool Surface(int pIndex)
     {
         return (mStatusGrid[pIndex] & BIT_SURFACE) != 0;
+
+
     }
 
 
@@ -64,13 +73,23 @@ public class Grid
 
         byte vBitValue = System.Convert.ToByte(pValue);
         mStatusGrid[pIndex] = (ushort)((mStatusGrid[pIndex] & ~BIT_SURFACE) | vBitValue);
+
+
     }
 
-    public void Surface(Vector3Int vCoords, bool pValue)
+    public void Surface(Chunk pChunk, bool pValue)
     {
+        Vector3Int vCoords = pChunk.mCoord;
         byte vBitValue = System.Convert.ToByte(pValue);
         int pIndex = ChunkIndex(vCoords.x, vCoords.y, vCoords.z);
         mStatusGrid[pIndex] = (ushort)((mStatusGrid[pIndex] & ~BIT_SURFACE) | vBitValue);
+
+        // 1. Obtener el índice de LOD basado en el mSize actual del chunk
+        int lodIdx = ResolutionToLodIndex(pChunk.mSize);
+
+        // 2. Guardar en los bits 2-3 (MASK_LOD_CURRENT)
+        // Usamos el método SetLod que ya tienes en Grid.cs
+        SetLod(pIndex, lodIdx);
     }
 
     public int ChunkIndex(int x, int y, int z)

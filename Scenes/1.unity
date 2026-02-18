@@ -544,7 +544,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 275de0c56fce77c41bca03f186c31545, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::FPSCamera
-  mMoveSpeed: 40
+  mMoveSpeed: 80
   mFastMultiplier: 3
   mMouseSensitivity: 1
   mMaxLookAngle: 85

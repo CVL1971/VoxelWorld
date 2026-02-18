@@ -7,6 +7,8 @@ public class SurfaceNetsGeneratorQEFOriginal2 : MeshGenerator
 
     public override MeshData Generate(Chunk pChunk, Chunk[] allChunks, Vector3Int worldSize)
     {
+        System.Diagnostics.Stopwatch vWatch = new System.Diagnostics.Stopwatch();
+        vWatch.Restart();
         // Se cambia pChunk.mTargetSize por pChunk.mSize
         int size = pChunk.mSize <= 0 ? VoxelUtils.UNIVERSAL_CHUNK_SIZE : pChunk.mSize;
         int lodIndex = VoxelUtils.GetInfoRes(size);
@@ -20,7 +22,7 @@ public class SurfaceNetsGeneratorQEFOriginal2 : MeshGenerator
             for (int y = 0; y <= size + 1; y++)
                 for (int x = 0; x <= size + 1; x++)
                 {
-                    localCache[x, y, z] = VoxelUtils.GetDensityGlobal(pChunk, allChunks, worldSize, x * vStep, y * vStep, z * vStep);
+                    localCache[x, y, z] = VoxelUtils.GetDensityGlobalFinal(pChunk, allChunks, worldSize, x, y, z);
                 }
 
         int[,,] vmap = new int[size + 1, size + 1, size + 1];
@@ -50,6 +52,8 @@ public class SurfaceNetsGeneratorQEFOriginal2 : MeshGenerator
                     EmitCorrectFaces(localCache, x, y, z, ISO_THRESHOLD, vmap, meshData.triangles, size);
                 }
 
+        vWatch.Stop();
+        Debug.Log($"[Remesh] time: {vWatch.Elapsed.TotalMilliseconds:F4} ms");
         return meshData;
     }
 

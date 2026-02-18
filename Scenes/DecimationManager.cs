@@ -42,7 +42,7 @@ using UnityEngine;
 
 public class DecimationManager
 {
-    private RenderQueue mRenderQueue;
+    private RenderStackAsync mRenderQueue;
     private MeshGenerator mGenerator;
 
     /// <summary>
@@ -51,7 +51,7 @@ public class DecimationManager
     /// </summary>
     private ConcurrentDictionary<Chunk, int> mPendingResamples = new ConcurrentDictionary<Chunk, int>();
 
-    public void Setup(RenderQueue pQueue, MeshGenerator pGenerator)
+    public void Setup(RenderStackAsync pQueue, MeshGenerator pGenerator)
     {
         mRenderQueue = pQueue;
         mGenerator = pGenerator;
@@ -72,6 +72,8 @@ public class DecimationManager
         pChunk.mAwaitingResample = true;
         mPendingResamples[pChunk] = pTargetRes;
     }
+
+   
 
     /// <summary>
     /// Procesa hasta maxPerFrame chunks pendientes: Redim + Sample, luego Enqueue a remesh.

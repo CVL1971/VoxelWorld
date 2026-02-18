@@ -24,8 +24,7 @@ public class World : MonoBehaviour
     Vector3Int mGridInUnits;
     Vector3Int mGridInChunks;
     Mesh mWorldMesh;
-    //RenderQueue mRenderQueueMulti;
-    //RenderQueueAsync mRenderQueueAsync;
+   
     RenderStackAsync mRenderQueueAsync;
 
     MeshGenerator mMeshGenerator;
@@ -33,7 +32,7 @@ public class World : MonoBehaviour
     SurfaceNetsGeneratorQEFOriginal2 mSurfaceNetQEF = new SurfaceNetsGeneratorQEFOriginal2();
     private CancellationTokenSource mCTS;
 
-    // Los nuevos motores de LOD
+  
     private Vigilante mVigilante;
     private DecimationManager mDecimator;
 
@@ -44,7 +43,7 @@ public class World : MonoBehaviour
     [SerializeField] float mMaxMillisecondsPerFrame = 16.0f; // Tiempo máximo de procesamiento por frame (16ms = 60fps)
     private float mTimer = 0f;
     private bool mIsProcessing = false;           // Flag para saber si estamos procesando
-    private Queue<RenderJob> mProcessingBuffer = new Queue<RenderJob>(); // Cola temporal de procesamiento
+   
 
 
 
@@ -57,42 +56,19 @@ public class World : MonoBehaviour
         //UnityEngine.Debug.Log($"[SurfaceNets] TERRAIN SAMPLER: {sw.Elapsed.TotalMilliseconds:F3} ms");
         #endregion
 
-        // ... dentro de tu método de inicialización ...
+       
 
         mChunkSize = VoxelUtils.UNIVERSAL_CHUNK_SIZE;
         mGridInChunks = new Vector3Int(64, 4, 64);
         mGridInUnits = mGridInChunks * mChunkSize;
         mGrid = new Grid(mGridInChunks, mChunkSize);
 
-        // Crear una instancia de Stopwatch para las mediciones
-        Stopwatch sw = new Stopwatch();
-
-        // --- MEDICIÓN 1: Sample ---
-        sw.Start();
         mGrid.ApplyToChunks(SDFGenerator.Sample);
         //SDFGenerator.LoadHeightmapToGrid(mGrid, @"E:\maps\1.png");
-        sw.Stop();
-        UnityEngine.Debug.Log($"[PERF] mGrid.ApplyToChunks(SDFGenerator.Sample) tardó: {sw.ElapsedMilliseconds} ms");
-        sw.Reset();
-
-        // --- MEDICIÓN 2: MarkSurface ---
-        sw.Start();
-        mGrid.ApplyToChunks(mGrid.MarkSurface);
-        sw.Stop();
-        UnityEngine.Debug.Log($"[PERF] mGrid.ApplyToChunks(mGrid.MarkSurface) tardó: {sw.ElapsedMilliseconds} ms");
-        sw.Reset();
-
+        mGrid.ApplyToChunks(mGrid.MarkSurface); 
         mRenderQueueAsync = new RenderStackAsync(mGrid);
-
-        // --- MEDICIÓN 3: InitWorld ---
-        sw.Start();
         InitWorld();
-        sw.Stop();
-        UnityEngine.Debug.Log($"[PERF] InitWorld tardó: {sw.ElapsedMilliseconds} ms");
-
-        // --- RESUMEN ---
-        // Pu
-
+       
         #region Vigilante Lod Code
         // 2. Inicializar el Decimator (Cerebro)
         mDecimator = new DecimationManager();
@@ -103,14 +79,9 @@ public class World : MonoBehaviour
         mVigilante.Setup(mGrid, mDecimator); // O el transform del Player
         mVigilante.vCurrentCamPos = mCamera.transform.position;
 
-        // 4. ¡ARRANQUE DEL HILO!
-        // No usamos 'await' aquí para que no bloquee el Start de Unity.
-        // Simplemente lanzamos la tarea al aire.
-
         //Task.Run(delegate { return mVigilante.Run(); });
         mCTS = new CancellationTokenSource();
 
-        // INVOCACIÓN CORRECTA:
         // Le pasamos el mCTS.Token para que el Vigilante sepa cuándo morir
         Task.Run(() => mVigilante.Run(mCTS.Token), mCTS.Token);
 
@@ -132,10 +103,6 @@ public class World : MonoBehaviour
         }
 
         //mRenderQueueMulti.ProcessParallel(-1);
-
-        //while (mRenderQueueMulti.mResultsLOD.TryDequeue(out var vResultLOD))
-        //    mRenderQueueMulti.Apply(vResultLOD.Key, vResultLOD.Value);
-        //mRenderQueue.ProcessSequential();
     }
 
     public void ExecuteModification(Vector3 pHitPoint, Vector3 pHitNormal, byte pNewValue)
@@ -165,8 +132,8 @@ public class World : MonoBehaviour
     void Update()
     {
 
-        int appliedThisFrame = 0;
-        bool cont = true;
+        int appliedThisFrame;
+       
         //// 0. ACTUALIZAR POSICIÓN DE CÁMARA
         if (mVigilante != null && mCamera != null)
         {
@@ -174,7 +141,7 @@ public class World : MonoBehaviour
         }
 
         appliedThisFrame = 0;
-        
+        bool cont = true;
         if (cont)
         {
             cont = mRenderQueueAsync.mResultsLOD.TryDequeue(out var r);
@@ -183,21 +150,13 @@ public class World : MonoBehaviour
                 mRenderQueueAsync.Apply(r.Key, r.Value);
                 appliedThisFrame++;
             }
-            
+
         }
-        // 1. RESAMPLE PENDIENTE (SDF Sampling)
-        // El decimator hace el Sample y ahora Encola en la cola MULTIHILO
+
         if (mDecimator != null)
             mDecimator.ProcessPendingResamples(100);
 
-        // 2. PROCESAMIENTO MULTIHILO (Delegamos la carga pesada)
-        // Usamos el 50% de los hilos (0 = hilos lógicos - 1, o un número específico)
-        //nThreads: 0 o Environment.ProcessorCount / 2
-        //int hilosAUsar = Mathf.Max(1, System.Environment.ProcessorCount / 2);
-        //mRenderQueueMulti.ProcessParallel(hilosAUsar);
 
-        // 3. APLICACIÓN DE RESULTADOS (Main Thread)
-        // Consumimos los resultados que el proceso paralelo ha ido dejando en mResultsLOD
         appliedThisFrame = 0;
         cont = true;
         if (cont)
@@ -211,6 +170,7 @@ public class World : MonoBehaviour
 
 
         }
+
     }
 
     void OnDisable()

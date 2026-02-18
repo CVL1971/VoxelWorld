@@ -20,22 +20,13 @@ public sealed class Chunk
     public bool mBool1 = false;
     public bool mBool2 = false;
     public int mIndex; //Indice para localizar al chunk en el array del grid de datos.
-
-    // =========================
-    // Datos voxel
-    // =========================
-
     public VoxelData[] mVoxels;
-
-    // =========================
-    // Vista (opcional, externa)
-    // =========================
-
     public GameObject mViewGO;
-
-    // =========================
-    // Constructor
-    // =========================
+    // Caché de densidades (LODs con padding de 1)
+    // Tamaños: (32+2)^3, (16+2)^3, (8+2)^3
+    public float[] mSample0; // LOD 0 (Res 32)
+    public float[] mSample1; // LOD 1 (Res 16)
+    public float[] mSample2; // LOD 2 (Res 8)
 
     public Chunk(Vector3Int pCoord, int pSize, Grid pGrid)
     {
@@ -53,7 +44,26 @@ public sealed class Chunk
         );
 
         mVoxels = VoxelArrayPool.Get(mSize);
-        //mVoxels = new VoxelData[pSize * pSize * pSize];
+        DeclareSampleArray();
+
+    }
+
+    public void DeclareSampleArray()
+    {
+        // Usamos las constantes de VoxelUtils para las resoluciones
+        int res0 = VoxelUtils.LOD_DATA[0] + 2;
+        int res1 = VoxelUtils.LOD_DATA[4] + 2;
+        int res2 = VoxelUtils.LOD_DATA[8] + 2;
+
+        mSample0 = new float[res0 * res0 * res0];
+        mSample1 = new float[res1 * res1 * res1];
+        mSample2 = new float[res2 * res2 * res2];
+    }
+
+    // Helper para indexar con el nuevo tamaño (mSize + 2)
+    public int IndexSample(int x, int y, int z, int resWithPadding)
+    {
+        return x + resWithPadding * (y + resWithPadding * z);
     }
 
     public void PrepareView(Transform worldRoot, Material surfaceMaterial)

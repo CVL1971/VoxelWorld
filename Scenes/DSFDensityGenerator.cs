@@ -119,6 +119,52 @@ public static class SDFGenerator
         return h;
     }
 
+    public static void SampleV2(Chunk pChunk)
+    {
+        int res = Mathf.RoundToInt(Mathf.Pow(pChunk.mVoxels.Length, 1f / 3f));
+
+        Vector3Int origin = pChunk.mWorldOrigin;
+
+        // Ahora res = N + 2 ? tamaño real del chunk = N
+        float vStep = (float)VoxelUtils.UNIVERSAL_CHUNK_SIZE / (float)(res - 2);
+
+        pChunk.ResetGenericBools();
+
+        // Igual que antes, pero el espacio sampleado cambia
+        for (int z = 0; z < res; z++)
+        {
+            float worldZ = origin.z + ((z - 1) * vStep);
+
+            for (int x = 0; x < res; x++)
+            {
+                float worldX = origin.x + ((x - 1) * vStep);
+
+                // seguimos reutilizando la altura por columna
+                float height = GetGeneratedHeight(worldX, worldZ);
+
+                for (int y = 0; y < res; y++)
+                {
+                    float worldY = origin.y + ((y - 1) * vStep);
+
+                    float density = Mathf.Clamp01((height - worldY) * SMOOTHNESS + ISO_SURFACE);
+
+                    pChunk.SetDensity(x, y, z, density);
+
+                    if (density >= ISO_SURFACE)
+                    {
+                        pChunk.SetSolid(x, y, z, 1);
+                        pChunk.mBool1 = true;
+                    }
+                    else
+                    {
+                        pChunk.SetSolid(x, y, z, 0);
+                        pChunk.mBool2 = true;
+                    }
+                }
+            }
+        }
+    }
+
 
     /// <summary>
     /// Implementación de SmoothStep estándar de HLSL/GLSL para C#

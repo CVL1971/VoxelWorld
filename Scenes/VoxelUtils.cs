@@ -455,8 +455,8 @@ public static class VoxelUtils
 
     public static readonly int[] LOD_DATA =
    {
-        32, 1, 65536,   0,
-        16, 2, 500000,  1,
+        32, 1, 300000,   0,
+        16, 2, 600000,  1,
         8,  4, 1000000, 2
     };
 

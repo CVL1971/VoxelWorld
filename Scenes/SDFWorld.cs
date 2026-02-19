@@ -37,10 +37,10 @@ public class World : MonoBehaviour
     private DecimationManager mDecimator;
 
     [Header("Configuración de Carga / LOD")]
-    [SerializeField] int mMinQueueToProcess = 5;  // Procesar en cuanto haya al menos 1 chunk (LOD activo)
-    [SerializeField] float mMaxWaitTime = 0.2f;   // Si hay cola y no llegamos al mínimo, esperar como mucho esto
-    [SerializeField] int mChunksPerFrame = 8;     // Chunks a resamplear + mallar por frame (LOD visible)
-    [SerializeField] float mMaxMillisecondsPerFrame = 16.0f; // Tiempo máximo de procesamiento por frame (16ms = 60fps)
+    [SerializeField] int mMinQueueToProcess = 1;  // Procesar en cuanto haya al menos 1 chunk (LOD activo)
+    [SerializeField] float mMaxWaitTime = 0.4f;   // Si hay cola y no llegamos al mínimo, esperar como mucho esto
+    [SerializeField] int mChunksPerFrame = 40;     // Chunks a resamplear + mallar por frame (LOD visible)
+    [SerializeField] float mMaxMillisecondsPerFrame = 32.0f; // Tiempo máximo de procesamiento por frame (16ms = 60fps)
     private float mTimer = 0f;
     private bool mIsProcessing = false;           // Flag para saber si estamos procesando
    
@@ -58,7 +58,7 @@ public class World : MonoBehaviour
        
 
         mChunkSize = VoxelUtils.UNIVERSAL_CHUNK_SIZE;
-        mGridInChunks = new Vector3Int(64, 4, 64);
+        mGridInChunks = new Vector3Int(128, 4, 128);
         mGridInUnits = mGridInChunks * mChunkSize;
         mGrid = new Grid(mGridInChunks, mChunkSize);
 
@@ -137,7 +137,7 @@ public class World : MonoBehaviour
         // 1. PRIMERO: Procesar cambios de LOD pendientes (Redim + Enqueue)
         //    Con 3 caches por chunk no hay resample, solo cambio de mSize y mallado
         if (mDecimator != null)
-            mDecimator.ProcessPendingResamples(mChunksPerFrame);
+            mDecimator.ProcessPendingResamples(20);
 
         // 2. Aplicar todos los resultados de mallado disponibles este frame
         while (mRenderQueueAsync.mResultsLOD.TryDequeue(out var r))

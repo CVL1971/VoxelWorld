@@ -28,8 +28,8 @@ public class World : MonoBehaviour
     RenderStackAsync mRenderQueueAsync;
 
     MeshGenerator mMeshGenerator;
-    SurfaceNetsGenerator mSurfaceNet = new SurfaceNetsGenerator();
-    SurfaceNetsGeneratorQEFOriginal2 mSurfaceNetQEF = new SurfaceNetsGeneratorQEFOriginal2();
+    SurfaceNetsGeneratorQEF3caches mSurfaceNet = new SurfaceNetsGeneratorQEF3caches();
+    SurfaceNetsGeneratorQEF3caches mSurfaceNetQEF = new SurfaceNetsGeneratorQEF3caches();
     private CancellationTokenSource mCTS;
 
   
@@ -59,7 +59,7 @@ public class World : MonoBehaviour
        
 
         mChunkSize = VoxelUtils.UNIVERSAL_CHUNK_SIZE;
-        mGridInChunks = new Vector3Int(64, 4, 64);
+        mGridInChunks = new Vector3Int(16, 4, 16);
         mGridInUnits = mGridInChunks * mChunkSize;
         mGrid = new Grid(mGridInChunks, mChunkSize);
 

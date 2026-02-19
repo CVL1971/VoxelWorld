@@ -3,69 +3,173 @@ using UnityEngine;
 
 public sealed class Chunk
 {
-    // =========================
-    // Identidad
-    // =========================
-
+    // =========================================================
+    // IDENTIDAD Y ESTADO
+    // =========================================================
     public readonly Vector3Int mCoord;
-    public int mSize;
     public readonly Grid mGrid;
     public readonly Vector3Int mWorldOrigin;
-    /// <summary> 0 = sin marcar. Si &gt; 0, resolución LOD deseada (32/16/8); marca la cascada Redim → Sample → Remesh. </summary>
-    public int mTargetSize = 0;
-    public bool mIsEdited = false;
-    /// <summary> True mientras el chunk está en la cola de resample del DecimationManager.
-    /// GetDensityGlobal/IsSolidGlobal usan SDF procedural en lugar del array para evitar grietas. </summary>
-    public bool mAwaitingResample = false;
-    public bool mBool1 = false;
-    public bool mBool2 = false;
-    public int mIndex; //Indice para localizar al chunk en el array del grid de datos.
-    public VoxelData[] mVoxels;
-    public GameObject mViewGO;
-    // Caché de densidades (LODs con padding de 1)
-    // Tamaños: (32+2)^3, (16+2)^3, (8+2)^3
-    public float[] mSample0; // LOD 0 (Res 32)
-    public float[] mSample1; // LOD 1 (Res 16)
-    public float[] mSample2; // LOD 2 (Res 8)
+    public readonly int mIndex;
 
+    /// <summary> Resolución actual del chunk (32, 16 u 8). </summary>
+    public int mSize;
+    /// <summary> Resolución objetivo para la próxima actualización de LOD. </summary>
+    public int mTargetSize = 0;
+
+    public bool mIsEdited = false;
+    public bool mAwaitingResample = false;
+
+    // Bools de estado para optimización de visibilidad
+    public bool mBool1 = false; // Flag: Contiene geometría sólida
+    public bool mBool2 = false; // Flag: Contiene aire/vacío
+
+    // =========================================================
+    // CACHÉ DE CAMPO DE DENSIDADES (Fuente única de verdad)
+    // =========================================================
+    // Cada array tiene un padding de +2 (1 unidad por cada lado de los 6 ejes)
+    // Esto permite al Mesher ser 100% autónomo.
+    public float[] mSample0; // LOD 0: (32+2)^3
+    public float[] mSample1; // LOD 1: (16+2)^3
+    public float[] mSample2; // LOD 2: (8+2)^3
+
+    public GameObject mViewGO;
+
+    // Umbral de superficie (Iso-surface)
+    public const float ISO_LEVEL = 0.5f;
+
+    // =========================================================
+    // CONSTRUCTOR
+    // =========================================================
     public Chunk(Vector3Int pCoord, int pSize, Grid pGrid)
     {
         mCoord = pCoord;
         mSize = pSize;
         mGrid = pGrid;
 
-        // Usamos la fórmula oficial del padre para calcular nuestra posición
         mIndex = mGrid.ChunkIndex(pCoord.x, pCoord.y, pCoord.z);
 
+        // El origen mundial se basa siempre en el tamaño universal (32) 
+        // para que los chunks no se muevan al cambiar de LOD.
         mWorldOrigin = new Vector3Int(
-            pCoord.x * pSize,
-            pCoord.y * pSize,
-            pCoord.z * pSize
+            pCoord.x * VoxelUtils.UNIVERSAL_CHUNK_SIZE,
+            pCoord.y * VoxelUtils.UNIVERSAL_CHUNK_SIZE,
+            pCoord.z * VoxelUtils.UNIVERSAL_CHUNK_SIZE
         );
 
-        mVoxels = VoxelArrayPool.Get(mSize);
         DeclareSampleArray();
+    }
 
+    // Constructor SOLO para unit tests
+    public Chunk(Vector3Int pCoord, int pSize)
+    {
+        mCoord = pCoord;
+        mSize = pSize;
+        mGrid = null;
+        mIndex = 0;
+
+        mWorldOrigin = new Vector3Int(
+            pCoord.x * VoxelUtils.UNIVERSAL_CHUNK_SIZE,
+            pCoord.y * VoxelUtils.UNIVERSAL_CHUNK_SIZE,
+            pCoord.z * VoxelUtils.UNIVERSAL_CHUNK_SIZE
+        );
+
+        DeclareSampleArray();
     }
 
     public void DeclareSampleArray()
     {
-        // Usamos las constantes de VoxelUtils para las resoluciones
-        int res0 = VoxelUtils.LOD_DATA[0] + 2;
-        int res1 = VoxelUtils.LOD_DATA[4] + 2;
-        int res2 = VoxelUtils.LOD_DATA[8] + 2;
+        // Padding +2 por cara: posiciones -1 a size+1 (necesario para geometría de fronteras entre chunks)
+        // Res0 = 35, Res1 = 19, Res2 = 11
+        int res0 = VoxelUtils.LOD_DATA[0] + 3;
+        int res1 = VoxelUtils.LOD_DATA[4] + 3;
+        int res2 = VoxelUtils.LOD_DATA[8] + 3;
 
         mSample0 = new float[res0 * res0 * res0];
         mSample1 = new float[res1 * res1 * res1];
         mSample2 = new float[res2 * res2 * res2];
     }
 
-    // Helper para indexar con el nuevo tamaño (mSize + 2)
+    // =========================================================
+    // INDEXACIÓN Y DIRECCIONAMIENTO
+    // =========================================================
+
+    /// <summary>
+    /// Calcula el índice 1D aplicando el offset de padding (+1).
+    /// </summary>
     public int IndexSample(int x, int y, int z, int resWithPadding)
     {
-        return x + resWithPadding * (y + resWithPadding * z);
+        // El +1 mapea el rango lógico [-1, Size] al rango del array [0, Size+1]
+        return (x + 1) + resWithPadding * ((y + 1) + resWithPadding * (z + 1));
     }
 
+    private float[] GetActiveCache()
+    {
+        if (mSize == VoxelUtils.LOD_DATA[0]) return mSample0;
+        if (mSize == VoxelUtils.LOD_DATA[4]) return mSample1;
+        return mSample2;
+    }
+
+    // =========================================================
+    // INTERFACES DE DENSIDAD
+    // =========================================================
+
+    public float GetDensity(int x, int y, int z)
+    {
+        float[] cache = GetActiveCache();
+        int p = mSize + 3;
+        return cache[IndexSample(x, y, z, p)];
+    }
+
+    public void SetDensity(int x, int y, int z, float pDensity)
+    {
+        float[] cache = GetActiveCache();
+        int p = mSize + 3;
+        cache[IndexSample(x, y, z, p)] = pDensity;
+        mIsEdited = true;
+    }
+
+    public bool IsSolid(int x, int y, int z)
+    {
+        // El estado sólido ahora se deriva dinámicamente de la densidad
+        return GetDensity(x, y, z) >= ISO_LEVEL;
+    }
+
+    public bool SafeIsSolid(int x, int y, int z)
+    {
+        // Fuera de los límites del chunk tratamos todo como aire (false)
+        if (x < 0 || x >= mSize || y < 0 || y >= mSize || z < 0 || z >= mSize)
+            return false;
+
+        return IsSolid(x, y, z);
+    }
+
+    // =========================================================
+    // EDICIÓN (BRUSH)
+    // =========================================================
+    public void ApplyBrush(VoxelBrush pBrush)
+    {
+        int p = mSize + 3;
+        float vStep = (float)VoxelUtils.UNIVERSAL_CHUNK_SIZE / mSize;
+
+        for (int z = 0; z < mSize; z++)
+            for (int y = 0; y < mSize; y++)
+                for (int x = 0; x < mSize; x++)
+                {
+                    Vector3 vWorldPos = (Vector3)mWorldOrigin + new Vector3(x, y, z) * vStep;
+                    float vDistThreshold = pBrush.mRadius + pBrush.mK * 2f;
+
+                    if (Vector3.Distance(vWorldPos, pBrush.mCenter) <= vDistThreshold)
+                    {
+                        float vCurrentD = GetDensity(x, y, z);
+                        float vNewD = pBrush.CalculateDensity(vWorldPos, vCurrentD);
+                        SetDensity(x, y, z, Mathf.Clamp01(vNewD));
+                    }
+                }
+    }
+
+    // =========================================================
+    // GESTIÓN DE VISTA Y MEMORIA
+    // =========================================================
     public void PrepareView(Transform worldRoot, Material surfaceMaterial)
     {
         if (mViewGO == null)
@@ -77,50 +181,11 @@ public sealed class Chunk
         }
     }
 
-    public void OnDestroy() // O cuando el chunk se desactiva
+    public void Redim(int pNewSize)
     {
-        if (mVoxels != null)
-        {
-            VoxelArrayPool.Return(mVoxels);
-            mVoxels = null;
-
-            //destroy mViewGO Logic
-
-            // 2. Limpiar los objetos de Unity (GPU/Escena)
-            if (mViewGO != null)
-            {
-                // Importante: Extraemos la malla antes de destruir el GO
-                MeshFilter filter = mViewGO.GetComponent<MeshFilter>();
-                if (filter != null && filter.sharedMesh != null)
-                {
-                    // DESTROZAR la malla de la memoria de vídeo (VRAM)
-                    // Si no haces esto, cada vez que destruyas un chunk perderás megas de VRAM
-                    Object.Destroy(filter.sharedMesh);
-                }
-
-                MeshCollider collider = mViewGO.GetComponent<MeshCollider>();
-                if (collider != null && collider.sharedMesh != null)
-                {
-                    // A veces el collider comparte la malla, pero por seguridad
-                    // nos aseguramos de que la referencia se limpie.
-                    collider.sharedMesh = null;
-                }
-
-                // Finalmente destruimos el contenedor en la escena
-                Object.Destroy(mViewGO);
-                mViewGO = null;
-            }
-        }
-    }
-
-    public void Redim(int pSize)
-    {
-        VoxelArrayPool.Return(mVoxels);
-        // Pedimos el nuevo
-        mVoxels = VoxelArrayPool.Get(pSize);
-        mSize = pSize;
-
-        //inconsistency nViewGO logic
+        // Al no haber mVoxels, el redimensionado es un simple cambio de puntero de resolución.
+        // El sistema de renderizado usará automáticamente el array de caché correspondiente.
+        mSize = pNewSize;
     }
 
     public void ResetGenericBools()
@@ -129,194 +194,49 @@ public sealed class Chunk
         mBool2 = false;
     }
 
-    public void ApplyBrush(VoxelBrush pBrush)
+    public void OnDestroy()
     {
-        // mSize es el tamaño del array (ej. 128)
-        for (int vz = 0; vz < mSize; vz++)
-            for (int vy = 0; vy < mSize; vy++)
-                for (int vx = 0; vx < mSize; vx++)
-                {
-                    // Suma vectorial directa: Origen del Chunk + coordenadas locales
-                    Vector3 vWorldPos = new Vector3(
-                        mWorldOrigin.x + vx,
-                        mWorldOrigin.y + vy,
-                        mWorldOrigin.z + vz
-                    );
+        // Liberamos los arrays para el GC
+        mSample0 = mSample1 = mSample2 = null;
 
-                    // El radio de influencia suele incluir un margen para el factor k
-                    float vDistThreshold = pBrush.mRadius + pBrush.mK * 2f;
-
-                    // Usamos sqrMagnitude si quisiéramos optimizar más, 
-                    // pero para seguir tu lógica actual usamos Distance
-                    if (Vector3.Distance(vWorldPos, pBrush.mCenter) <= vDistThreshold)
-                    {
-                        float vCurrentD = GetDensity(vx, vy, vz);
-                        float vNewD = pBrush.CalculateDensity(vWorldPos, vCurrentD);
-
-                        SetDensity(vx, vy, vz, Mathf.Clamp01(vNewD));
-                        // Actualizamos el estado sólido basándonos en el umbral
-                        SetSolid(vx, vy, vz, vNewD > 0.5f ? (byte)1 : (byte)0);
-                    }
-                }
-    }
-
-    public float DensityAt(int x, int y, int z)
-    {
-        // Usamos InBounds (que ya tienes definido) para verificar si el punto está dentro
-        if (!InBounds(x, y, z))
+        if (mViewGO != null)
         {
-            return 0.0f; // Si está fuera del chunk, devolvemos aire
+            MeshFilter filter = mViewGO.GetComponent<MeshFilter>();
+            if (filter != null && filter.sharedMesh != null)
+                Object.Destroy(filter.sharedMesh);
+
+            Object.Destroy(mViewGO);
+            mViewGO = null;
         }
-
-        // Usamos Index(x, y, z) que ya tienes definido para obtener el voxel correcto
-        return mVoxels[Index(x, y, z)].density;
     }
 
-    // =========================
-    // Indexación
-    // =========================
-
-    public int Index(int x, int y, int z)
-    {
-        return x + mSize * (y + mSize * z);
-    }
-
-    public bool InBounds(int x, int y, int z)
-    {
-        return x >= 0 && x < mSize &&
-        y >= 0 && y < mSize &&
-        z >= 0 && z < mSize;
-    }
-
-    // =========================
-    // LECTURA (estricta)
-    // =========================
-
-    public bool IsSolid(int x, int y, int z)
-    {
-        return mVoxels[Index(x, y, z)].solid != 0;
-    }
-
-    public byte IsSolid(int index)
-    {
-        return mVoxels[index].solid; // 0 = aire, 1 = sólido
-    }
-
-    public float GetDensity(int x, int y, int z)
-    {
-        if (!InBounds(x, y, z))
-        {
-            throw new System.Exception("Chunk.getDensity(int,int,int) out of bonds");
-            return 0.0f;
-        }
-      
-
-       return mVoxels[Index(x, y, z)].density;
-    }
-
-
-    // =========================
-    // LECTURA CON 3 ESTADOS
-    // 0 = Aire
-    // 1 = Sólido
-    // 2 = Inexistente (fuera del dominio)
-    // =========================
-
-    //public byte SafeIsSolid(int x, int y, int z)
-    //{
-    //    if (x < 0 || y < 0 || z < 0 ||
-    //        x >= mSize || y >= mSize || z >= mSize)
-    //        return 2; // inexistente
-
-    //    return mVoxels[Index(x, y, z)].solid != 0 ? (byte)1 : (byte)0;
-    //}
-
-    // =========================
-    // LECTURA PARA MESHING
-    // Política integrada:
-    //  - dentro + sólido -> true
-    //  - dentro + aire   -> false
-    //  - fuera           -> false (tratado como aire)
-    // =========================
-
-    public bool SafeIsSolid(int x, int y, int z)
-    {
-        if (x < 0 || y < 0 || z < 0 ||
-            x >= mSize || y >= mSize || z >= mSize)
-            return false;
-
-        return mVoxels[Index(x, y, z)].solid != 0;
-    }
-
-    // =========================
-    // ESCRITURA
-    // =========================
-
-    public void SetSolid(int x, int y, int z, byte pSolid)
-    {
-        if (!InBounds(x, y, z))
-            return;
-
-        mVoxels[Index(x, y, z)].solid = pSolid;
-    }
-
-    public void SetDensity(int x, int y, int z, float pDensity)
-    {
-        if (!InBounds(x, y, z))
-            return;
-
-        mVoxels[Index(x, y, z)].density = pDensity;
-    }
-
-    // =========================
-    // UTILIDADES
-    // =========================
-
-    public void SetEmpty()
-    {
-        for (int i = 0; i < mVoxels.Length; i++)
-            mVoxels[i].solid = 0;
-    }
-
-    public void SetFull()
-    {
-        for (int i = 0; i < mVoxels.Length; i++)
-            mVoxels[i].solid = 1;
-    }
-
-    // =========================
+    // =========================================================
     // DEBUG VISUAL
-    // =========================
-
+    // =========================================================
     public void DrawDebug(Color pColor, float pduration)
     {
-        // Calculamos las esquinas basadas en el origen global y el tamaño
-        Vector3 min = mWorldOrigin;
-        Vector3 max = mWorldOrigin + new Vector3(mSize, mSize, mSize);
+        // Usamos siempre el tamaño universal para el dibujo del cubo debug
+        Vector3 min = (Vector3)mWorldOrigin;
+        float s = VoxelUtils.UNIVERSAL_CHUNK_SIZE;
+        Vector3 max = min + new Vector3(s, s, s);
 
-        // Base (Y inferior)
+        // Dibujado de las 12 aristas del cubo
         Debug.DrawLine(new Vector3(min.x, min.y, min.z), new Vector3(max.x, min.y, min.z), pColor, pduration);
         Debug.DrawLine(new Vector3(max.x, min.y, min.z), new Vector3(max.x, min.y, max.z), pColor, pduration);
         Debug.DrawLine(new Vector3(max.x, min.y, max.z), new Vector3(min.x, min.y, max.z), pColor, pduration);
         Debug.DrawLine(new Vector3(min.x, min.y, max.z), new Vector3(min.x, min.y, min.z), pColor, pduration);
 
-        // Techo (Y superior)
         Debug.DrawLine(new Vector3(min.x, max.y, min.z), new Vector3(max.x, max.y, min.z), pColor, pduration);
         Debug.DrawLine(new Vector3(max.x, max.y, min.z), new Vector3(max.x, max.y, max.z), pColor, pduration);
         Debug.DrawLine(new Vector3(max.x, max.y, max.z), new Vector3(min.x, max.y, max.z), pColor, pduration);
         Debug.DrawLine(new Vector3(min.x, max.y, max.z), new Vector3(min.x, max.y, min.z), pColor, pduration);
 
-        // Columnas verticales (unión Base-Techo)
         Debug.DrawLine(new Vector3(min.x, min.y, min.z), new Vector3(min.x, max.y, min.z), pColor, pduration);
         Debug.DrawLine(new Vector3(max.x, min.y, min.z), new Vector3(max.x, max.y, min.z), pColor, pduration);
         Debug.DrawLine(new Vector3(max.x, min.y, max.z), new Vector3(max.x, max.y, max.z), pColor, pduration);
         Debug.DrawLine(new Vector3(min.x, min.y, max.z), new Vector3(min.x, max.y, max.z), pColor, pduration);
     }
-
-
 }
-
-
 
 
 

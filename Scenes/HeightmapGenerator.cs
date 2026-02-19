@@ -11,7 +11,7 @@ public static class HeightmapManager
     /// </summary>
     public static void SaveGridToHeightmap(Grid pGrid, string filePath = DEFAULT_PATH)
     {
-        int res = Mathf.RoundToInt(Mathf.Pow(pGrid.mChunks[0].mVoxels.Length, 1f / 3f));
+        int res = pGrid.mChunks[0].mSize;
         int texWidth = pGrid.mSizeInChunks.x * res;
         int texHeight = pGrid.mSizeInChunks.z * res;
 

@@ -3,7 +3,7 @@ using System.IO;
 
 public static class SDFGenerator
 {
-    // Par醡etros de configuraci髇 del mundo
+    // Par谩metros de configuraci贸n del mundo
     private const float BASE_SCALE = 0.006f;
     private const float MOUNTAIN_SCALE = 0.015f;
     private const float DETAIL_SCALE = 0.04f;
@@ -12,47 +12,7 @@ public static class SDFGenerator
     private const float ISO_SURFACE = 0.5f;
     private const float SMOOTHNESS = 2.0f; // Mantenemos un valor bajo para suavidad natural
 
-    public static void Sample(Chunk pChunk)
-    {
-        int res = Mathf.RoundToInt(Mathf.Pow(pChunk.mVoxels.Length, 1f / 3f));
-        Vector3Int origin = pChunk.mWorldOrigin;
-        float vStep = (float)VoxelUtils.UNIVERSAL_CHUNK_SIZE / (float)res;
-        pChunk.ResetGenericBools();
-
-        // Movimos los bucles: X y Z afuera para calcular la altura una sola vez por columna
-        for (int z = 0; z < res; z++)
-        {
-            float worldZ = (float)origin.z + ((float)z * vStep);
-            for (int x = 0; x < res; x++)
-            {
-                float worldX = (float)origin.x + ((float)x * vStep);
-
-                // --- OPTIMIZACI覰 CLAVE: Calculamos la altura una vez por columna ---
-                float height = GetGeneratedHeight(worldX, worldZ);
-
-                for (int y = 0; y < res; y++)
-                {
-                    float worldY = (float)origin.y + ((float)y * vStep);
-
-                    // Calculamos densidad directamente sin volver a ejecutar el ruido
-                    float density = Mathf.Clamp01((height - worldY) * SMOOTHNESS + ISO_SURFACE);
-
-                    pChunk.SetDensity(x, y, z, density);
-
-                    if (density >= ISO_SURFACE)
-                    {
-                        pChunk.SetSolid(x, y, z, 1);
-                        pChunk.mBool1 = true;
-                    }
-                    else
-                    {
-                        pChunk.SetSolid(x, y, z, 0);
-                        pChunk.mBool2 = true;
-                    }
-                }
-            }
-        }
-    }
+  
 
     public static float Sample(Vector3 worldPos)
     {
@@ -67,35 +27,16 @@ public static class SDFGenerator
         return worldPos.y - h;
     }
 
-    //private static float GetGeneratedHeight(float x, float z)
-    //{
-    //    // 1. Ruido Base (Grandes masas de tierra)
-    //    float baseLand = Mathf.PerlinNoise(x * BASE_SCALE, z * BASE_SCALE);
-
-    //    // 2. Ridged Noise (Para crestas de monta馻s afiladas)
-    //    // Invertimos el ruido para que los "valles" del Perlin sean "picos"
-    //    float mountainNoise = Mathf.PerlinNoise(x * MOUNTAIN_SCALE, z * MOUNTAIN_SCALE);
-    //    float ridges = 1.0f - Mathf.Abs(mountainNoise * 2.0f - 1.0f);
-    //    ridges = ridges * ridges; // Exponencial para afilar a鷑 m醩 las crestas
-
-    //    // 3. Ruido de detalle (Peque馻s irregularidades)
-    //    float detail = (Mathf.PerlinNoise(x * DETAIL_SCALE, z * DETAIL_SCALE) * 2.0f - 1.0f) * 2.0f;
-
-    //    // Combinaci髇: Las monta馻s solo aparecen donde el baseLand es alto
-    //    float height = (baseLand * 30.0f) + (ridges * baseLand * 40.0f) + detail;
-
-    //    return height + 15.0f; // Offset de elevaci髇 m韓ima
-    //}
 
     public static float GetGeneratedHeight(float x, float z)
     {
         // --- CONTINENTES (SIN WARP) ---
         float C = Mathf.PerlinNoise(x * 0.0008f, z * 0.0008f);
 
-        // --- WARP SOLO PARA DETALLE Y MONTA袮S ---
+        // --- WARP SOLO PARA DETALLE Y MONTA脩AS ---
         Vector2 p = Warp(x, z);
 
-        // M: Monta馻s (ridged)
+        // M: Monta帽as (ridged)
         float noiseM = Mathf.PerlinNoise(p.x * 0.01f, p.y * 0.01f);
         float M = 1.0f - Mathf.Abs((noiseM * 2.0f) - 1.0f);
 
@@ -114,51 +55,56 @@ public static class SDFGenerator
              baseLayer * 40.0f +
              mountain * 120.0f +
              valley * 25.0f +
-             D * 5.0f * baseLayer; // evita ruido en oc閍nos
+             D * 5.0f * baseLayer; // evita ruido en oc茅anos
 
         return h;
     }
 
-    public static void SampleV2(Chunk pChunk)
+    public static void Sample(Chunk pChunk)
     {
-        int res = Mathf.RoundToInt(Mathf.Pow(pChunk.mVoxels.Length, 1f / 3f));
+        // 1. La resoluci贸n base ahora viene de mSize (N)
+        // Padding +2 por cara: posiciones -1 a N+1 (necesario para geometr铆a de fronteras entre chunks)
+        int N = pChunk.mSize;
+        int paddedRes = N + 3;
 
         Vector3Int origin = pChunk.mWorldOrigin;
 
-        // Ahora res = N + 2 ? tama駉 real del chunk = N
-        float vStep = (float)VoxelUtils.UNIVERSAL_CHUNK_SIZE / (float)(res - 2);
+        // El paso (step) se calcula sobre el tama帽o f铆sico universal (32) dividido por N
+        // Ejemplo: Si N=32, step=1. Si N=8, step=4.
+        float vStep = (float)VoxelUtils.UNIVERSAL_CHUNK_SIZE / (float)N;
 
         pChunk.ResetGenericBools();
 
-        // Igual que antes, pero el espacio sampleado cambia
-        for (int z = 0; z < res; z++)
+        // 2. Iteramos sobre el rango total incluyendo el padding (de -1 a N+1 en coordenadas chunk)
+        for (int z = 0; z < paddedRes; z++)
         {
+            // (z - 1) escala la posici贸n para que el 铆ndice 0 del array sea el mundo real -1
             float worldZ = origin.z + ((z - 1) * vStep);
 
-            for (int x = 0; x < res; x++)
+            for (int x = 0; x < paddedRes; x++)
             {
                 float worldX = origin.x + ((x - 1) * vStep);
 
-                // seguimos reutilizando la altura por columna
+                // Altura procedural (una vez por columna)
                 float height = GetGeneratedHeight(worldX, worldZ);
 
-                for (int y = 0; y < res; y++)
+                for (int y = 0; y < paddedRes; y++)
                 {
                     float worldY = origin.y + ((y - 1) * vStep);
 
+                    // C谩lculo de densidad (puedes usar SMOOTHNESS y ISO_SURFACE definidos en tu clase)
                     float density = Mathf.Clamp01((height - worldY) * SMOOTHNESS + ISO_SURFACE);
 
-                    pChunk.SetDensity(x, y, z, density);
+                    // 3. Escritura directa usando la nueva interfaz de Chunk
+                    // Pasamos x-1, y-1, z-1 para que IndexSample los convierta en [0...paddedRes-1]
+                    pChunk.SetDensity(x - 1, y - 1, z - 1, density);
 
-                    if (density >= ISO_SURFACE)
+                    // 4. Marcado de bools de visibilidad (solo para el cuerpo real del chunk, no el padding)
+                    // Esto optimiza el renderizado ignorando chunks vac铆os
+                    if (x > 0 && x <= N && y > 0 && y <= N && z > 0 && z <= N)
                     {
-                        pChunk.SetSolid(x, y, z, 1);
-                        pChunk.mBool1 = true;
-                    }
-                    else
-                    {
-                        pChunk.SetSolid(x, y, z, 0);
-                        pChunk.mBool2 = true;
+                        if (density >= ISO_SURFACE) pChunk.mBool1 = true; // S贸lido
+                        else pChunk.mBool2 = true;                       // Aire
                     }
                 }
             }
@@ -167,13 +113,13 @@ public static class SDFGenerator
 
 
     /// <summary>
-    /// Implementaci髇 de SmoothStep est醤dar de HLSL/GLSL para C#
+    /// Implementaci贸n de SmoothStep est谩ndar de HLSL/GLSL para C#
     /// </summary>
     public static float SmoothStep(float edge0, float edge1, float x)
     {
-        // Clampeamos el valor entre 0 y 1 bas醤donos en los bordes
+        // Clampeamos el valor entre 0 y 1 bas谩ndonos en los bordes
         float t = Mathf.Clamp01((x - edge0) / (edge1 - edge0));
-        // F髍mula polin髆ica: 3t^2 - 2t^3
+        // F贸rmula polin贸mica: 3t^2 - 2t^3
         return t * t * (3.0f - 2.0f * t);
     }
 
@@ -210,7 +156,7 @@ public static class SDFGenerator
     }
 
     /// <summary>
-    /// Carga un Heightmap (EXR/PNG/JPG) y reconstruye densidades con interpolaci髇.
+    /// Carga un Heightmap (EXR/PNG/JPG) y reconstruye densidades con interpolaci贸n.
     /// </summary>
     public static void LoadHeightmapToGrid(Grid pGrid, string filePath = @"E:\maps\1.exr")
     {
@@ -223,9 +169,9 @@ public static class SDFGenerator
         byte[] bytes = File.ReadAllBytes(filePath);
         Texture2D tex = new Texture2D(2, 2, TextureFormat.RFloat, false, true);
         tex.LoadImage(bytes);
-        tex.filterMode = FilterMode.Bilinear; // Suavizado entre p韝eles
+        tex.filterMode = FilterMode.Bilinear; // Suavizado entre p铆xeles
 
-        int res = Mathf.RoundToInt(Mathf.Pow(pGrid.mChunks[0].mVoxels.Length, 1f / 3f));
+        int res = pGrid.mChunks[0].mSize;
         float maxHeight = pGrid.mSizeInChunks.y * VoxelUtils.UNIVERSAL_CHUNK_SIZE;
         float vStep = (float)VoxelUtils.UNIVERSAL_CHUNK_SIZE / res;
 
@@ -265,12 +211,12 @@ public static class SDFGenerator
 
                                 if (density >= 0.5f)
                                 {
-                                    chunk.SetSolid(vx, vy, vz, 1);
+                                    
                                     chunk.mBool1 = true;
                                 }
                                 else
                                 {
-                                    chunk.SetSolid(vx, vy, vz, 0);
+                                   
                                     chunk.mBool2 = true;
                                 }
                             }
@@ -287,10 +233,10 @@ public static class SDFGenerator
 
     //public static void ResampleData(Chunk pChunk)
     //{
-    //    int res = pChunk.mSize; // Resoluci髇 actual (8, 16 o 32)
+    //    int res = pChunk.mSize; // Resoluci贸n actual (8, 16 o 32)
     //    Vector3Int origin = pChunk.mWorldOrigin;
 
-    //    // Calculamos el paso (step) necesario para cubrir 32 unidades f韘icas
+    //    // Calculamos el paso (step) necesario para cubrir 32 unidades f铆sicas
     //    // Si res es 32, step es 1.0. Si res es 8, step es 4.0.
     //    float step = (float)VoxelUtils.UNIVERSAL_CHUNK_SIZE / res;
 
@@ -300,7 +246,7 @@ public static class SDFGenerator
     //        {
     //            for (int x = 0; x < res; x++)
     //            {
-    //                // Calculamos la posici髇 real en el mundo usando el paso
+    //                // Calculamos la posici贸n real en el mundo usando el paso
     //                Vector3 worldPos = new Vector3(
     //                    origin.x + (x * step),
     //                    origin.y + (y * step),
@@ -316,5 +262,26 @@ public static class SDFGenerator
     //            }
     //        }
     //    }
+    //}
+
+
+    //private static float GetGeneratedHeight(float x, float z)
+    //{
+    //    // 1. Ruido Base (Grandes masas de tierra)
+    //    float baseLand = Mathf.PerlinNoise(x * BASE_SCALE, z * BASE_SCALE);
+
+    //    // 2. Ridged Noise (Para crestas de monta帽as afiladas)
+    //    // Invertimos el ruido para que los "valles" del Perlin sean "picos"
+    //    float mountainNoise = Mathf.PerlinNoise(x * MOUNTAIN_SCALE, z * MOUNTAIN_SCALE);
+    //    float ridges = 1.0f - Mathf.Abs(mountainNoise * 2.0f - 1.0f);
+    //    ridges = ridges * ridges; // Exponencial para afilar a煤n m谩s las crestas
+
+    //    // 3. Ruido de detalle (Peque帽as irregularidades)
+    //    float detail = (Mathf.PerlinNoise(x * DETAIL_SCALE, z * DETAIL_SCALE) * 2.0f - 1.0f) * 2.0f;
+
+    //    // Combinaci贸n: Las monta帽as solo aparecen donde el baseLand es alto
+    //    float height = (baseLand * 30.0f) + (ridges * baseLand * 40.0f) + detail;
+
+    //    return height + 15.0f; // Offset de elevaci贸n m铆nima
     //}
 }

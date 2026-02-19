@@ -17,11 +17,17 @@ public class SurfaceNetsGeneratorQEF3caches : MeshGenerator
         float[] cache = (lodIndex == 0) ? pChunk.mSample0 :
                         (lodIndex == 4) ? pChunk.mSample1 : pChunk.mSample2;
 
+
+        
+
+
         if (cache == null) return meshData;
 
-        int p = size + 2; // Resolución con padding
+        // p = size+3: array cubre posiciones -1 a size+1 (geometría de fronteras entre chunks)
+        int p = size + 3;
 
         // 2. FASE DE VÉRTICES
+        // Celdas 0..size: incluye las del borde para generar vértices que conectan con vecinos
         int[,,] vmap = new int[size + 1, size + 1, size + 1];
 
         for (int z = 0; z <= size; z++)
@@ -44,13 +50,16 @@ public class SurfaceNetsGeneratorQEF3caches : MeshGenerator
                     else vmap[x, y, z] = -1;
                 }
 
-        // 3. FASE DE CARAS
+        // 3. FASE DE CARAS (mismo rango de celdas: 0..size)
         for (int z = 0; z <= size; z++)
             for (int y = 0; y <= size; y++)
                 for (int x = 0; x <= size; x++)
                 {
                     EmitCorrectFaces(cache, x, y, z, p, ISO_THRESHOLD, vmap, meshData.triangles, size);
                 }
+
+
+
 
         return meshData;
     }
@@ -85,9 +94,9 @@ public class SurfaceNetsGeneratorQEF3caches : MeshGenerator
             {
                 float t = Mathf.Clamp01((iso - d0) / (d1 - d0 + 0.000001f));
 
-                // Aplicamos el desfase -1 para alinear con el padding
-                Vector3 p0 = new Vector3(x0 - 1, y0 - 1, z0 - 1) * vStep;
-                Vector3 p1 = new Vector3(x1 - 1, y1 - 1, z1 - 1) * vStep;
+                // Posición física: grid (i,j,k) → local (i*vStep, j*vStep, k*vStep)
+                Vector3 p0 = new Vector3(x0, y0, z0) * vStep;
+                Vector3 p1 = new Vector3(x1, y1, z1) * vStep;
 
                 massPoint += Vector3.Lerp(p0, p1, t);
                 count++;
@@ -98,7 +107,7 @@ public class SurfaceNetsGeneratorQEF3caches : MeshGenerator
         CheckEdge(x, y, z, x, y + 1, z); CheckEdge(x + 1, y, z, x + 1, y + 1, z); CheckEdge(x, y, z + 1, x, y + 1, z + 1); CheckEdge(x + 1, y, z + 1, x + 1, y + 1, z + 1);
         CheckEdge(x, y, z, x, y, z + 1); CheckEdge(x + 1, y, z, x + 1, y, z + 1); CheckEdge(x, y + 1, z, x, y + 1, z + 1); CheckEdge(x + 1, y + 1, z, x + 1, y + 1, z + 1);
 
-        return count > 0 ? massPoint / count : new Vector3(x + 0.5f - 1f, y + 0.5f - 1f, z + 0.5f - 1f) * vStep;
+        return count > 0 ? massPoint / count : new Vector3(x + 0.5f, y + 0.5f, z + 0.5f) * vStep;
     }
 
     protected void EmitCorrectFaces(float[] cache, int x, int y, int z, int p, float iso, int[,,] vmap, List<int> tris, int size)

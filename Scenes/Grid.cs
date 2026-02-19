@@ -173,7 +173,7 @@ public HashSet<int> ModifyWorld(VoxelBrush pBrush)
                     float vNewD = pBrush.CalculateDensity(vPos, vCurrentD);
 
                     vChunk.SetDensity(vLx, vLy, vLz, Mathf.Clamp01(vNewD));
-                    vChunk.SetSolid(vLx, vLy, vLz, vNewD > 0.5f ? (byte)1 : (byte)0);
+                   
 
                     vAffectedChunks.Add(vCIdx);
                 }

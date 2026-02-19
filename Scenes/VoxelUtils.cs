@@ -105,7 +105,8 @@ public static class VoxelUtils
             ix = Mathf.Clamp(ix, 0, targetRes - 1);
             iy = Mathf.Clamp(iy, 0, targetRes - 1);
             iz = Mathf.Clamp(iz, 0, targetRes - 1);
-            return target.DensityAt(ix, iy, iz);
+            return target.GetDensity(ix, iy, iz);
+            
         }
 
         // Si no, hacemos interpolaci?n trilineal para suavizar la transici?n
@@ -122,14 +123,14 @@ public static class VoxelUtils
         float tz = fz - z0;
 
         // Interpolaci?n trilineal
-        float c000 = target.DensityAt(x0, y0, z0);
-        float c100 = target.DensityAt(x1, y0, z0);
-        float c010 = target.DensityAt(x0, y1, z0);
-        float c110 = target.DensityAt(x1, y1, z0);
-        float c001 = target.DensityAt(x0, y0, z1);
-        float c101 = target.DensityAt(x1, y0, z1);
-        float c011 = target.DensityAt(x0, y1, z1);
-        float c111 = target.DensityAt(x1, y1, z1);
+        float c000 = target.GetDensity(x0, y0, z0);
+        float c100 = target.GetDensity(x1, y0, z0);
+        float c010 = target.GetDensity(x0, y1, z0);
+        float c110 = target.GetDensity(x1, y1, z0);
+        float c001 = target.GetDensity(x0, y0, z1);
+        float c101 = target.GetDensity(x1, y0, z1);
+        float c011 = target.GetDensity(x0, y1, z1);
+        float c111 = target.GetDensity(x1, y1, z1);
 
         float c00 = Mathf.Lerp(c000, c100, tx);
         float c01 = Mathf.Lerp(c001, c101, tx);
@@ -290,10 +291,9 @@ public static class VoxelUtils
         int iz = Mathf.RoundToInt(z);
 
         // 1. VÍA LOCAL (0 a 31): Datos discretos puros.
-        if (currentChunk.InBounds(ix, iy, iz))
-        {
+       
             return currentChunk.GetDensity(ix, iy, iz);
-        }
+      
 
         // 2. VÍA VECINO (Frontera estricta): Solo si es un espejo perfecto.
         int dx = (ix < 0) ? -1 : (ix >= currentChunk.mSize ? 1 : 0);
@@ -308,7 +308,7 @@ public static class VoxelUtils
 
             // CONDICIÓN DISCRETA: Solo si existe, tiene datos y el LOD es IDÉNTICO.
             // Si el LOD es distinto, no hay transformación matemática válida: abortamos al SDF.
-            if (neighbor != null && neighbor.mVoxels != null && neighbor.mSize == currentChunk.mSize && !neighbor.mAwaitingResample)
+            if (neighbor != null && neighbor.mSize == currentChunk.mSize && !neighbor.mAwaitingResample)
             {
                 // Mapeo simple de índices (ej: x=32 se vuelve x=0 en el vecino)
                 int nix = (ix < 0) ? ix + neighbor.mSize : (ix >= currentChunk.mSize ? ix - currentChunk.mSize : ix);

@@ -16,7 +16,7 @@ public class FPSCamera : MonoBehaviour
     [SerializeField] private Color mRayColor = Color.green;
 
     [Header("Visual Reticle (Exact Point)")]
-    [SerializeField] private float mReticleScale = 0.2f;     // TamaÒo del punto de mira 3D
+    [SerializeField] private float mReticleScale = 0.2f;     // Tamaùo del punto de mira 3D
     [SerializeField] private Material mReticleMaterial;      // Material para la esfera
 
     private GameObject mReticleSphere;
@@ -53,7 +53,7 @@ public class FPSCamera : MonoBehaviour
     {
         HandleModeSwitch();
 
-        // Actualizamos la retÌcula y el rayo de depuraciÛn
+        // Actualizamos la retùcula y el rayo de depuraciùn
         UpdateInteractionVisuals();
 
         if (!mNavigationMode)
@@ -76,7 +76,7 @@ public class FPSCamera : MonoBehaviour
     }
 
     /// <summary>
-    /// Crea la esfera ˙nica que act˙a como puntero 3D.
+    /// Crea la esfera ùnica que actùa como puntero 3D.
     /// </summary>
     private void CreateReticle()
     {
@@ -107,7 +107,7 @@ public class FPSCamera : MonoBehaviour
     {
         if (mReticleSphere == null) return;
 
-        // Rayo perfectamente paralelo a la c·mara
+        // Rayo perfectamente paralelo a la cùmara
         Ray ray = new Ray(transform.position, transform.forward);
         RaycastHit hit;
 
@@ -117,18 +117,16 @@ public class FPSCamera : MonoBehaviour
         // 1. Dibujar Rayo Debug (Parallel)
         Debug.DrawRay(transform.position, transform.forward * mInteractionRange, mRayColor);
 
-        // 2. Posicionar RetÌcula en el punto exacto
+        // 2. Posicionar Retùcula en el punto exacto
         if (hasHit)
         {
             mReticleSphere.SetActive(true);
             mReticleSphere.transform.position = hit.point;
 
             // 3. Sistema de Log de Coordenadas Globales
-            // Solo imprimimos si cambiamos de objeto o si la posiciÛn ha cambiado significativamente (> 0.5 unidades)
+            // Solo imprimimos si cambiamos de objeto o si la posiciùn ha cambiado significativamente (> 0.5 unidades)
             if (currentHitName != mLastHitName || Vector3.Distance(hit.point, mLastHitPos) > 0.5f)
             {
-                //Debug.Log($"<color=white>[HIT]</color> PosiciÛn Global: <b>{hit.point.ToString("F2")}</b> | Objeto: {currentHitName}");
-
                 mLastHitName = currentHitName;
                 mLastHitPos = hit.point;
             }
@@ -138,7 +136,6 @@ public class FPSCamera : MonoBehaviour
             if (mReticleSphere.activeSelf)
             {
                 mReticleSphere.SetActive(false);
-                //Debug.Log("<color=grey>[OUT]</color> Fuera de rango / Aire.");
                 mLastHitName = "Aire/Vacio";
             }
         }
@@ -153,7 +150,6 @@ public class FPSCamera : MonoBehaviour
 
         if (Physics.Raycast(ray, out hit, mInteractionRange))
         {
-            //Debug.Log($"<color=red>[ACCI”N]</color> Modificando voxel en coordenadas: {hit.point}");
             mWorld.ExecuteModification(hit.point, hit.normal, 0);
         }
     }
@@ -224,7 +220,6 @@ public class FPSCamera : MonoBehaviour
         PlayerPrefs.SetFloat(PitchKey, mPitch);
         PlayerPrefs.SetInt(HasSavedKey, 1);
         PlayerPrefs.Save();
-        Debug.Log("FPSCamera: vista guardada");
     }
 
     void LoadView()

@@ -33,8 +33,6 @@ public class VigilanteSimulator : MonoBehaviour
         Vector3 vCurrentCamPos = new Vector3(2048, 256, 2048); // Centro del mundo en unidades
         float vHalf = 16.0f; // VoxelUtils.UNIVERSAL_CHUNK_SIZE * 0.5f
 
-        UnityEngine.Debug.Log($"<b>[ARQUITECTO]</b> Simulando Vigilante sobre {totalChunks} objetos...");
-
         Stopwatch sw = Stopwatch.StartNew();
         int changeRequests = 0;
 
@@ -72,13 +70,5 @@ public class VigilanteSimulator : MonoBehaviour
         }
 
         sw.Stop();
-
-        // RESULTADOS
-        double ms = sw.Elapsed.TotalMilliseconds;
-        UnityEngine.Debug.Log("---------------------------------------");
-        UnityEngine.Debug.Log($"<b>TIEMPO SIMULACIÓN:</b> {ms:F4} ms");
-        UnityEngine.Debug.Log($"<b>PETICIONES GENERADAS:</b> {changeRequests}");
-        UnityEngine.Debug.Log($"<b>NS POR CHUNK:</b> {(ms * 1000000.0 / totalChunks):F2} ns");
-        UnityEngine.Debug.Log("---------------------------------------");
     }
 }

@@ -17,8 +17,6 @@ using UnityEngine;
 //        SurfaceNetsGeneratorTest mesher = new SurfaceNetsGeneratorTest();
 //        MeshData data = mesher.Generate(chunk);
 
-//        Debug.Log("Vertices: " + data.vertices.Count);
-//        Debug.Log("Triangles: " + data.triangles.Count / 3);
 
 //        // visualizar
 //        GameObject go = new GameObject("TEST_MESH", typeof(MeshFilter), typeof(MeshRenderer));
@@ -67,8 +65,6 @@ public class SurfaceNetsTwoChunkTest : MonoBehaviour
 
         FillWorldPlane(A, 16f);
         FillWorldPlane(B, 16f);
-
-        Debug.Log(A.GetDensity(32, 16, 0) + "  vs  " + B.GetDensity(0, 16, 0));
 
         SurfaceNetsGeneratorTest mesher = new SurfaceNetsGeneratorTest();
 

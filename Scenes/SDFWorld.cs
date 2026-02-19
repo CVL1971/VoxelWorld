@@ -53,7 +53,6 @@ public class World : MonoBehaviour
         //Stopwatch sw = null;
         //sw = Stopwatch.StartNew();
         //sw.Stop();
-        //UnityEngine.Debug.Log($"[SurfaceNets] TERRAIN SAMPLER: {sw.Elapsed.TotalMilliseconds:F3} ms");
         #endregion
 
        

@@ -60,8 +60,6 @@ public class IntraLODCrackDiagnostic : MonoBehaviour
                     boundaryCellCount += 6;
                 }
             }
-            if (mLogBoundaryStats && boundaryCellCount > 0 && Time.frameCount % 300 == 0)
-                Debug.Log($"[IntraLOD] Chunks: {mGrid.mChunks.Length}, dibujadas 6 caras límite por chunk.");
         }
     }
 
@@ -89,14 +87,5 @@ public class IntraLODCrackDiagnostic : MonoBehaviour
         if (w == null) { Debug.LogError("No World in scene."); return; }
         Grid g = (Grid)w.GetType().GetField("mGrid", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(w);
         if (g == null || g.mChunks == null) { Debug.LogError("No Grid/chunks."); return; }
-
-        Debug.Log("<color=orange>[IntraLOD Diagnostic] Resumen por chunk (mSize = resolución LOD, bordes en 0 y size)</color>");
-        for (int i = 0; i < g.mChunks.Length; i++)
-        {
-            Chunk c = g.mChunks[i];
-            if (c == null) continue;
-            int res = c.mSize > 0 ? c.mSize : VoxelUtils.UNIVERSAL_CHUNK_SIZE;
-            Debug.Log($"  Chunk {i} coord={c.mCoord} mSize={res} (LOD)");
-        }
     }
 }

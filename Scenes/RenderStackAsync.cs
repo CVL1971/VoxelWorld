@@ -127,10 +127,5 @@ public class RenderStackAsync
         int lodApplied = Grid.ResolutionToLodIndex(pChunk.mSize);
         mGrid.SetLod(index, lodApplied);
         mGrid.SetProcessing(index, false);
-
-        #if UNITY_EDITOR
-        if (lodApplied > 0)
-            UnityEngine.Debug.Log($"[LOD] Apply: chunk {pChunk.mCoord} mSize={pChunk.mSize} LOD={lodApplied} verts={pData.vertices.Count}");
-        #endif
     }
 }

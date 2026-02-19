@@ -53,7 +53,6 @@ public class SurfaceNetsGeneratorQEFOriginal2 : MeshGenerator
                 }
 
         vWatch.Stop();
-        Debug.Log($"[Remesh] time: {vWatch.Elapsed.TotalMilliseconds:F4} ms");
         return meshData;
     }
 

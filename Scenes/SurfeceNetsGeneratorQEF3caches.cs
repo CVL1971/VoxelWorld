@@ -44,7 +44,7 @@ public class SurfaceNetsGeneratorQEF3caches : MeshGenerator
 
                         meshData.vertices.Add(localPos);
 
-                        Vector3 normal = ComputeNormalFromCache(cache, localPos, vStep, p, size);
+                        Vector3 normal = ComputeNormalFromCache(cache, x, y, z, p, size, lodIndex);
                         meshData.normals.Add(normal);
                     }
                     else vmap[x, y, z] = -1;
@@ -70,21 +70,33 @@ public class SurfaceNetsGeneratorQEF3caches : MeshGenerator
     }
 
     /// <summary>
-    /// Calcula la normal desde la caché activa del chunk (gradiente por diferencias centrales).
-    /// No usa SDFGenerator.Sample ni datos de vecinos; única fuente: mSample0/1/2.
+    /// Calcula la normal desde la caché activa (gradiente por diferencias centrales).
+    /// Signo alineado con SDFGenerator.CalculateNormal: (izq - der).
+    /// LOD 0, 1, 2: kernel 5x5x5 para mismo nivel de suavizado en todos los niveles.
     /// </summary>
-    private Vector3 ComputeNormalFromCache(float[] cache, Vector3 localPos, float vStep, int p, int size)
+    private Vector3 ComputeNormalFromCache(float[] cache, int cx, int cy, int cz, int p, int size, int lodIndex)
     {
-        // Cache cubre -1..size+1; diferencias centrales requieren vecinos, luego [0, size]
-        int ix = Mathf.Clamp(Mathf.RoundToInt(localPos.x / vStep), 0, size);
-        int iy = Mathf.Clamp(Mathf.RoundToInt(localPos.y / vStep), 0, size);
-        int iz = Mathf.Clamp(Mathf.RoundToInt(localPos.z / vStep), 0, size);
+        int radius = 2; // LOD 0,1,2: 5x5x5, mismo suavizado
+        int r0 = -radius, r1 = radius;
 
-        float dX = GetD(cache, ix + 1, iy, iz, p) - GetD(cache, ix - 1, iy, iz, p);
-        float dY = GetD(cache, ix, iy + 1, iz, p) - GetD(cache, ix, iy - 1, iz, p);
-        float dZ = GetD(cache, ix, iy, iz + 1, p) - GetD(cache, ix, iy, iz - 1, p);
+        float gx = 0f, gy = 0f, gz = 0f;
+        int count = 0;
 
-        Vector3 grad = new Vector3(dX, dY, dZ);
+        for (int dz = r0; dz <= r1; dz++)
+        for (int dy = r0; dy <= r1; dy++)
+        for (int dx = r0; dx <= r1; dx++)
+        {
+            int nx = Mathf.Clamp(cx + dx, 0, size);
+            int ny = Mathf.Clamp(cy + dy, 0, size);
+            int nz = Mathf.Clamp(cz + dz, 0, size);
+
+            gx += GetD(cache, nx - 1, ny, nz, p) - GetD(cache, nx + 1, ny, nz, p);
+            gy += GetD(cache, nx, ny - 1, nz, p) - GetD(cache, nx, ny + 1, nz, p);
+            gz += GetD(cache, nx, ny, nz - 1, p) - GetD(cache, nx, ny, nz + 1, p);
+            count++;
+        }
+
+        Vector3 grad = new Vector3(gx / count, gy / count, gz / count);
         return grad.sqrMagnitude < 0.0001f ? Vector3.up : grad.normalized;
     }
 

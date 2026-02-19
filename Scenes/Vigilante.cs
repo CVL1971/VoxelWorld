@@ -54,10 +54,6 @@ public class Vigilante
 
                     int vTargetRes = (int)VoxelUtils.LOD_DATA[vInfoBlock];
 
-                    #if UNITY_EDITOR
-                    UnityEngine.Debug.Log($"[LOD] Vigilante detecta: chunk {i} distSq={vDistSq:F0} LOD {vCurrentLodIdx}→{vTargetLodIdx} res {vTargetRes}");
-                    #endif
-
                     mDecimator.RequestLODChange(mGrid.mChunks[i], vTargetRes);
                 }
             }

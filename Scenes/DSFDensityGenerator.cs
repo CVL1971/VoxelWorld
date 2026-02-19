@@ -220,7 +220,6 @@ public static class SDFGenerator
         }
 
         Object.DestroyImmediate(tex);
-        Debug.Log("<color=cyan>[Heightmap]</color> Carga 32-bit finalizada.");
     }
 
 

@@ -69,8 +69,6 @@ public class RenderStackSyncMono
             _dbgSync.AppendLine($"<color=red>FATAL ERROR:</color> {e.Message}");
             _dbgSync.AppendLine(e.StackTrace);
         }
-
-        Debug.Log(_dbgSync.ToString());
     }
 
     public void Apply(Chunk pChunk, MeshData pData)

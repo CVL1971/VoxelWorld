@@ -72,7 +72,6 @@ public static class HeightmapManager
             // EncodeToEXR preserva los floats de 32 bits
             byte[] bytes = texture.EncodeToEXR(Texture2D.EXRFlags.OutputAsFloat);
             File.WriteAllBytes(filePath, bytes);
-            Debug.Log($"<color=green>[Heightmap]</color> Guardado en alta precisión: {filePath}");
         }
         catch (System.Exception e)
         {

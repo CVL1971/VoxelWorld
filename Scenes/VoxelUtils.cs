@@ -453,10 +453,12 @@ public static class VoxelUtils
     //    8f,  4.0f, 1000000f, 2f
     //};
 
+    // [res, step, distSq, lodIdx] - distSq ajustados para mundo 16x4x16 (~736 u diagonal)
+    // LOD 0: <200k (~447u), LOD 1: <450k (~670u), LOD 2: 450k+ (alcanzable al alejarse)
     public static readonly int[] LOD_DATA =
-   {
-        32, 1, 300000,   0,
-        16, 2, 600000,  1,
+    {
+        32, 1, 200000,   0,
+        16, 2, 450000,  1,
         8,  4, 1000000, 2
     };
 

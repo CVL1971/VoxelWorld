@@ -62,53 +62,46 @@ public static class SDFGenerator
 
     public static void Sample(Chunk pChunk)
     {
-        // 1. La resolución base ahora viene de mSize (N)
-        // Padding +2 por cara: posiciones -1 a N+1 (necesario para geometría de fronteras entre chunks)
-        int N = pChunk.mSize;
-        int paddedRes = N + 3;
-
-        Vector3Int origin = pChunk.mWorldOrigin;
-
-        // El paso (step) se calcula sobre el tamaño físico universal (32) dividido por N
-        // Ejemplo: Si N=32, step=1. Si N=8, step=4.
-        float vStep = (float)VoxelUtils.UNIVERSAL_CHUNK_SIZE / (float)N;
-
+        int savedSize = pChunk.mSize;
         pChunk.ResetGenericBools();
 
-        // 2. Iteramos sobre el rango total incluyendo el padding (de -1 a N+1 en coordenadas chunk)
-        for (int z = 0; z < paddedRes; z++)
+        // Rellenar los 3 caches (mSample0, mSample1, mSample2) para que LOD funcione.
+        // SetDensity usa GetActiveCache() según mSize, así que temporalmente cambiamos mSize.
+        int[] resolutions = { (int)VoxelUtils.LOD_DATA[0], (int)VoxelUtils.LOD_DATA[4], (int)VoxelUtils.LOD_DATA[8] };
+
+        foreach (int N in resolutions)
         {
-            // (z - 1) escala la posición para que el índice 0 del array sea el mundo real -1
-            float worldZ = origin.z + ((z - 1) * vStep);
+            pChunk.mSize = N;
+            int paddedRes = N + 3;
+            Vector3Int origin = pChunk.mWorldOrigin;
+            float vStep = (float)VoxelUtils.UNIVERSAL_CHUNK_SIZE / (float)N;
 
-            for (int x = 0; x < paddedRes; x++)
+            for (int z = 0; z < paddedRes; z++)
             {
-                float worldX = origin.x + ((x - 1) * vStep);
-
-                // Altura procedural (una vez por columna)
-                float height = GetGeneratedHeight(worldX, worldZ);
-
-                for (int y = 0; y < paddedRes; y++)
+                float worldZ = origin.z + ((z - 1) * vStep);
+                for (int x = 0; x < paddedRes; x++)
                 {
-                    float worldY = origin.y + ((y - 1) * vStep);
+                    float worldX = origin.x + ((x - 1) * vStep);
+                    float height = GetGeneratedHeight(worldX, worldZ);
 
-                    // Cálculo de densidad (puedes usar SMOOTHNESS y ISO_SURFACE definidos en tu clase)
-                    float density = Mathf.Clamp01((height - worldY) * SMOOTHNESS + ISO_SURFACE);
-
-                    // 3. Escritura directa usando la nueva interfaz de Chunk
-                    // Pasamos x-1, y-1, z-1 para que IndexSample los convierta en [0...paddedRes-1]
-                    pChunk.SetDensity(x - 1, y - 1, z - 1, density);
-
-                    // 4. Marcado de bools de visibilidad (solo para el cuerpo real del chunk, no el padding)
-                    // Esto optimiza el renderizado ignorando chunks vacíos
-                    if (x > 0 && x <= N && y > 0 && y <= N && z > 0 && z <= N)
+                    for (int y = 0; y < paddedRes; y++)
                     {
-                        if (density >= ISO_SURFACE) pChunk.mBool1 = true; // Sólido
-                        else pChunk.mBool2 = true;                       // Aire
+                        float worldY = origin.y + ((y - 1) * vStep);
+                        float density = Mathf.Clamp01((height - worldY) * SMOOTHNESS + ISO_SURFACE);
+
+                        pChunk.SetDensity(x - 1, y - 1, z - 1, density);
+
+                        if (x > 0 && x <= N && y > 0 && y <= N && z > 0 && z <= N)
+                        {
+                            if (density >= ISO_SURFACE) pChunk.mBool1 = true;
+                            else pChunk.mBool2 = true;
+                        }
                     }
                 }
             }
         }
+
+        pChunk.mSize = savedSize;
     }
 
 

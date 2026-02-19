@@ -65,12 +65,13 @@ public class DecimationManager
     {
         if (pChunk == null || pChunk.mIsEdited) return;
 
-        //int currentRes = Mathf.RoundToInt(Mathf.Pow(pChunk.mVoxels.Length, 1f / 3f));
-        //if (currentRes == pTargetRes) return;
-
         pChunk.mTargetSize = pTargetRes;
         pChunk.mAwaitingResample = true;
         mPendingResamples[pChunk] = pTargetRes;
+
+        #if UNITY_EDITOR
+        UnityEngine.Debug.Log($"[LOD] Vigilante ? Decimator: chunk {pChunk.mCoord} mSize {pChunk.mSize} ? targetRes {pTargetRes}");
+        #endif
     }
 
    
@@ -94,16 +95,16 @@ public class DecimationManager
 
         foreach (var t in toProcess)
         {
-            // 2. CORRECCIÓN DEL ERROR CS7036:
-            // TryRemove requiere un segundo parámetro 'out' para devolver el valor eliminado.
+            // 2. CORRECCIN DEL ERROR CS7036:
+            // TryRemove requiere un segundo parmetro 'out' para devolver el valor eliminado.
             // Usamos '_' (discard) porque no necesitamos ese valor para nada.
             mPendingResamples.TryRemove(t.chunk, out _);
+            // Con 3 caches por LOD: solo Redim (cambia mSize ? selecciona mSample0/1/2), sin resample
             t.chunk.Redim(t.targetRes);
-            SDFGenerator.Sample(t.chunk);
             t.chunk.mAwaitingResample = false;
-            t.chunk.mTargetSize = 0; // Cascada de datos terminada; remesh aplicará la geometría
-            //mTargetSize a 0, debe ser bandera de chunk listo, vigilante a 0 lo volvera a detectar
-            mRenderQueue.Enqueue(t.chunk, mGenerator);
+            t.chunk.mTargetSize = 0;
+            // Asncrono: encola a la cola de mallado (Generate en worker, Apply en main thread)
+            mRenderQueue.ForceEnqueue(t.chunk, mGenerator);
             //2 error, da por sentado de que los datos de un voxel son coherentes y estables por haberle actualizado
             //sus densidades de acuerdo a la nueva resolucion, pero para que el proceso de remesh se haba sobre datos
             //limpios, el voxel tiene que tener datos actualizados Y sus VECINOS NO PUEDEN ESTAR MARCADOS PARA CAMBIO DE LOD,
@@ -132,6 +133,11 @@ public class DecimationManager
                 }
          t.chunk.DrawDebug(vDebugColor, 0.5f);
         }
+
+        #if UNITY_EDITOR
+        if (toProcess.Count > 0)
+            UnityEngine.Debug.Log($"[LOD] ProcessPendingResamples: {toProcess.Count} chunks -> Redim + ForceEnqueue (pendientes: {mPendingResamples.Count})");
+        #endif
 
         return toProcess.Count;
     }

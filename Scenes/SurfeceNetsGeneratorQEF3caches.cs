@@ -44,8 +44,8 @@ public class SurfaceNetsGeneratorQEF3caches : MeshGenerator
 
                         meshData.vertices.Add(localPos);
 
-                        Vector3 worldPos = (Vector3)pChunk.mWorldOrigin + localPos;
-                        meshData.normals.Add(SDFGenerator.CalculateNormal(worldPos));
+                        Vector3 normal = ComputeNormalFromCache(cache, localPos, vStep, p, size);
+                        meshData.normals.Add(normal);
                     }
                     else vmap[x, y, z] = -1;
                 }
@@ -67,6 +67,25 @@ public class SurfaceNetsGeneratorQEF3caches : MeshGenerator
     private float GetD(float[] c, int x, int y, int z, int p)
     {
         return c[(x + 1) + p * ((y + 1) + p * (z + 1))];
+    }
+
+    /// <summary>
+    /// Calcula la normal desde la caché activa del chunk (gradiente por diferencias centrales).
+    /// No usa SDFGenerator.Sample ni datos de vecinos; única fuente: mSample0/1/2.
+    /// </summary>
+    private Vector3 ComputeNormalFromCache(float[] cache, Vector3 localPos, float vStep, int p, int size)
+    {
+        // Cache cubre -1..size+1; diferencias centrales requieren vecinos, luego [0, size]
+        int ix = Mathf.Clamp(Mathf.RoundToInt(localPos.x / vStep), 0, size);
+        int iy = Mathf.Clamp(Mathf.RoundToInt(localPos.y / vStep), 0, size);
+        int iz = Mathf.Clamp(Mathf.RoundToInt(localPos.z / vStep), 0, size);
+
+        float dX = GetD(cache, ix + 1, iy, iz, p) - GetD(cache, ix - 1, iy, iz, p);
+        float dY = GetD(cache, ix, iy + 1, iz, p) - GetD(cache, ix, iy - 1, iz, p);
+        float dZ = GetD(cache, ix, iy, iz + 1, p) - GetD(cache, ix, iy, iz - 1, p);
+
+        Vector3 grad = new Vector3(dX, dY, dZ);
+        return grad.sqrMagnitude < 0.0001f ? Vector3.up : grad.normalized;
     }
 
     protected bool CellCrossesIso(float[] cache, int x, int y, int z, int p, float iso)

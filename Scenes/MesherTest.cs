@@ -24,7 +24,7 @@ public class SurfaceNetsGeneratorTest
         int[,,] vmap = new int[size, size, size];
 
         // ============================
-        // VERTICES
+        // VERTICES 
         // ============================
         for (int z = 0; z < size; z++)
 for (int y = 0; y < size; y++)

@@ -125,7 +125,7 @@ public sealed class Chunk
         float[] cache = GetActiveCache();
         int p = mSize + 3;
         cache[IndexSample(x, y, z, p)] = pDensity;
-        mIsEdited = true;
+        // mIsEdited solo se marca en ModifyWorld/ApplyBrush (edición usuario), no en SDFGenerator
     }
 
     public bool IsSolid(int x, int y, int z)
@@ -148,6 +148,7 @@ public sealed class Chunk
     // =========================================================
     public void ApplyBrush(VoxelBrush pBrush)
     {
+        mIsEdited = true;
         int p = mSize + 3;
         float vStep = (float)VoxelUtils.UNIVERSAL_CHUNK_SIZE / mSize;
 

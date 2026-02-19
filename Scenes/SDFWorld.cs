@@ -59,7 +59,7 @@ public class World : MonoBehaviour
        
 
         mChunkSize = VoxelUtils.UNIVERSAL_CHUNK_SIZE;
-        mGridInChunks = new Vector3Int(16, 4, 16);
+        mGridInChunks = new Vector3Int(64, 4, 64);
         mGridInUnits = mGridInChunks * mChunkSize;
         mGrid = new Grid(mGridInChunks, mChunkSize);
 
@@ -131,46 +131,18 @@ public class World : MonoBehaviour
 
     void Update()
     {
-
-        int appliedThisFrame;
-       
-        //// 0. ACTUALIZAR POSICIÓN DE CÁMARA
+        // 0. Actualizar posición de cámara (Vigilante la usa para detectar LOD)
         if (mVigilante != null && mCamera != null)
-        {
             mVigilante.vCurrentCamPos = mCamera.transform.position;
-        }
 
-        appliedThisFrame = 0;
-        bool cont = true;
-        if (cont)
-        {
-            cont = mRenderQueueAsync.mResultsLOD.TryDequeue(out var r);
-            if (cont)
-            {
-                mRenderQueueAsync.Apply(r.Key, r.Value);
-                appliedThisFrame++;
-            }
-
-        }
-
+        // 1. PRIMERO: Procesar cambios de LOD pendientes (Redim + Enqueue)
+        //    Con 3 caches por chunk no hay resample, solo cambio de mSize y mallado
         if (mDecimator != null)
-            mDecimator.ProcessPendingResamples(100);
+            mDecimator.ProcessPendingResamples(mChunksPerFrame);
 
-
-        appliedThisFrame = 0;
-        cont = true;
-        if (cont)
-        {
-            cont = mRenderQueueAsync.mResultsLOD.TryDequeue(out var vResult);
-            if (cont)
-            {
-                mRenderQueueAsync.Apply(vResult.Key, vResult.Value);
-                appliedThisFrame++;
-            }
-
-
-        }
-
+        // 2. Aplicar todos los resultados de mallado disponibles este frame
+        while (mRenderQueueAsync.mResultsLOD.TryDequeue(out var r))
+            mRenderQueueAsync.Apply(r.Key, r.Value);
     }
 
     void OnDisable()

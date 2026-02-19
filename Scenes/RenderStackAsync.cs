@@ -9,8 +9,8 @@ public class RenderStackAsync
 {
     private readonly Grid mGrid;
 
-    // Cambiado de ConcurrentQueue a ConcurrentStack para prioridad LIFO
-    public ConcurrentStack<RenderJob> mStack = new();
+    // FIFO: Init primero, luego LOD changes (evita que LOD sea sobrescrito por Init)
+    public ConcurrentQueue<RenderJob> mQueue = new();
     public ConcurrentDictionary<Chunk, byte> mInWait = new();
     public ConcurrentQueue<KeyValuePair<Chunk, MeshData>> mResultsLOD = new();
 
@@ -24,17 +24,29 @@ public class RenderStackAsync
         mSlots = new SemaphoreSlim(maxParallel);
     }
 
-    // ---- ENQUEUE (Ahora PUSH) ----
+    // ---- ENQUEUE ----
     public void Enqueue(Chunk pChunk, MeshGenerator pGenerator)
     {
         if (pChunk == null || pGenerator == null) return;
 
         if (mInWait.TryAdd(pChunk, 0))
         {
-            // Usamos Push para que sea el primero en salir
-            mStack.Push(new RenderJob(pChunk, pGenerator));
+            mQueue.Enqueue(new RenderJob(pChunk, pGenerator));
             StartWorker();
         }
+    }
+
+    /// <summary>
+    /// Fuerza encolar aunque el chunk esté en la cola (para LOD changes).
+    /// Evita que TryAdd bloquee cuando Init y LOD compiten por el mismo chunk.
+    /// </summary>
+    public void ForceEnqueue(Chunk pChunk, MeshGenerator pGenerator)
+    {
+        if (pChunk == null || pGenerator == null) return;
+
+        mQueue.Enqueue(new RenderJob(pChunk, pGenerator));
+        mInWait.TryAdd(pChunk, 0); // no bloquea si ya está
+        StartWorker();
     }
 
     // ---- WORKER LOOP ----
@@ -50,13 +62,12 @@ public class RenderStackAsync
     {
         while (true)
         {
-            // Cambiado TryDequeue por TryPop para obtener el último elemento añadido
-            if (!mStack.TryPop(out var job))
+            if (!mQueue.TryDequeue(out var job))
             {
                 mWorkerRunning = 0;
 
                 // si alguien encoló mientras salíamos
-                if (!mStack.IsEmpty && Interlocked.CompareExchange(ref mWorkerRunning, 1, 0) == 0)
+                if (!mQueue.IsEmpty && Interlocked.CompareExchange(ref mWorkerRunning, 1, 0) == 0)
                     continue;
 
                 return;
@@ -112,10 +123,14 @@ public class RenderStackAsync
         if (vMf.sharedMesh != null) GameObject.Destroy(vMf.sharedMesh);
         vMf.sharedMesh = vMesh;
 
-        MeshRenderer vMr = pChunk.mViewGO.GetComponent<MeshRenderer>();
         int index = pChunk.mIndex;
-        int targetLod = (mGrid.mStatusGrid[index] & Grid.MASK_LOD_TARGET) >> 4;
-        mGrid.SetLod(index, targetLod);
+        int lodApplied = Grid.ResolutionToLodIndex(pChunk.mSize);
+        mGrid.SetLod(index, lodApplied);
         mGrid.SetProcessing(index, false);
+
+        #if UNITY_EDITOR
+        if (lodApplied > 0)
+            UnityEngine.Debug.Log($"[LOD] Apply: chunk {pChunk.mCoord} mSize={pChunk.mSize} LOD={lodApplied} verts={pData.vertices.Count}");
+        #endif
     }
 }

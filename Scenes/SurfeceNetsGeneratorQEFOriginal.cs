@@ -7,7 +7,7 @@ public class SurfaceNetsGeneratorQEFOriginal : MeshGenerator
 
     public override MeshData Generate(Chunk pChunk, Chunk[] allChunks, Vector3Int worldSize)
     {
-        int size = pChunk.mTargetSize <= 0 ? VoxelUtils.UNIVERSAL_CHUNK_SIZE : pChunk.mTargetSize;
+        int size = pChunk.mSize;
         int lodIndex = VoxelUtils.GetInfoRes(size);
         float vStep = VoxelUtils.LOD_DATA[lodIndex + 1];
 

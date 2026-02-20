@@ -107,7 +107,7 @@ public class World : MonoBehaviour
     public void ExecuteModification(Vector3 pHitPoint, Vector3 pHitNormal, byte pNewValue)
     {
         Vector3 vTargetPos = pHitPoint - pHitNormal * 0.2f;
-        VoxelBrush vBrush = new VoxelBrush(vTargetPos, 2.4f, 0.3f, 0.18f, pNewValue == 0);
+        VoxelBrush vBrush = new VoxelBrush(vTargetPos, 20f, 0.3f, 0.18f, pNewValue == 0);
 
         // 1. El Grid nos devuelve la colección de "afectados"
         HashSet<int> vChunksToRebuild = mGrid.ModifyWorld(vBrush);
@@ -117,11 +117,11 @@ public class World : MonoBehaviour
         {
             Chunk vChunk = mGrid.mChunks[vIndex];
 
-            // Aquí centralizamos la orden de renderizado
-            //if (mRenderQueue != null)
-            //{
-            //    mRenderQueue.Enqueue(vChunk, mSurfaceNet);
-            //}
+            //Aquí centralizamos la orden de renderizado
+            if (mRenderQueueAsync != null)
+            {
+                mRenderQueueAsync.Enqueue(vChunk, mSurfaceNet);
+            }
         }
 
         //mRenderQueue.ProcessParallel();

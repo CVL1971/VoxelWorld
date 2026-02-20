@@ -73,7 +73,7 @@ public static class VoxelUtils
         // - Nosotros M?s FINOS que el vecino (acercando/refinando): SDF para no depender de datos viejos del vecino.
         // - Nosotros M?s GRUESOS o igual que el vecino (alejando/decimando): LEER del array del vecino para que
         //   nuestro borde coincida con la malla que el vecino ya tiene (?l se gener? antes leyendo nuestros datos).
-        if (target.mAwaitingResample || currentRes > targetRes)
+        if (currentRes > targetRes)
             return SDFGenerator.Sample(new Vector3(gx, gy, gz));
 
         // Misma resoluci?n o nosotros m?s gruesos: leer del array del vecino
@@ -308,7 +308,7 @@ public static class VoxelUtils
 
             // CONDICIÓN DISCRETA: Solo si existe, tiene datos y el LOD es IDÉNTICO.
             // Si el LOD es distinto, no hay transformación matemática válida: abortamos al SDF.
-            if (neighbor != null && neighbor.mSize == currentChunk.mSize && !neighbor.mAwaitingResample)
+            if (neighbor != null && neighbor.mSize == currentChunk.mSize)
             {
                 // Mapeo simple de índices (ej: x=32 se vuelve x=0 en el vecino)
                 int nix = (ix < 0) ? ix + neighbor.mSize : (ix >= currentChunk.mSize ? ix - currentChunk.mSize : ix);
@@ -358,7 +358,7 @@ public static class VoxelUtils
         int currentRes = currentChunk.mSize <= 0 ? UNIVERSAL_CHUNK_SIZE : currentChunk.mSize;
 
         // Misma l?gica que GetDensityGlobal: SDF solo si vecino pendiente o nosotros m?s finos; si no, leer array.
-        if (target.mAwaitingResample || currentRes > targetRes)
+        if (currentRes > targetRes)
             return SDFGenerator.Sample(new Vector3(gx, gy, gz)) >= 0.5f;
 
         int lodIdx = GetInfoRes(targetRes);

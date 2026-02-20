@@ -78,9 +78,9 @@ public class RenderQueueAsync
     {
         Chunk vChunk = vRequest.mChunk;
 
-        // LOD
-        if (vChunk.mTargetSize > 0)
-            vChunk.Redim(vChunk.mTargetSize);
+        //// LOD
+        //if (vChunk.mTargetSize > 0)
+        //    vChunk.Redim(vChunk.mTargetSize);
 
         // Generar malla
         MeshData vData = vRequest.mMeshGenerator.Generate(
@@ -89,7 +89,6 @@ public class RenderQueueAsync
             mGrid.mSizeInChunks
         );
 
-        vChunk.mTargetSize = 0;
 
         if (vData != null)
             mResultsLOD.Enqueue(new KeyValuePair<Chunk, MeshData>(vChunk, vData));
@@ -112,8 +111,8 @@ public class RenderQueueAsync
         if (vMf.sharedMesh != null) GameObject.Destroy(vMf.sharedMesh);
         vMf.sharedMesh = vMesh;
 
-        //MeshCollider vMc = pChunk.mViewGO.GetComponent<MeshCollider>();
-        //if (vMc != null) vMc.sharedMesh = vMesh;
+        MeshCollider vMc = pChunk.mViewGO.GetComponent<MeshCollider>();
+        if (vMc != null) vMc.sharedMesh = vMesh;
 
         // 2. APLICACIÓN DE COLOR ESTABLE
         MeshRenderer vMr = pChunk.mViewGO.GetComponent<MeshRenderer>();
@@ -121,11 +120,13 @@ public class RenderQueueAsync
         int index = pChunk.mIndex;
 
         int targetLod = (mGrid.mStatusGrid[index] & Grid.MASK_LOD_TARGET) >> 4;
-        mGrid.SetLod(index, targetLod);
+        //3 Target Lod complete
+        mGrid.SetLod(index, 3);
 
         // IMPORTANTE: Liberamos el bit de procesamiento. 
         // Ahora el Vigilante puede volver a evaluar este chunk.
         mGrid.SetProcessing(index, false);
+
 
         //if (vMr != null)
         //{

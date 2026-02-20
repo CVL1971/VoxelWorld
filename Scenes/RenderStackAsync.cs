@@ -40,14 +40,7 @@ public class RenderStackAsync
     /// Fuerza encolar aunque el chunk esté en la cola (para LOD changes).
     /// Evita que TryAdd bloquee cuando Init y LOD compiten por el mismo chunk.
     /// </summary>
-    public void ForceEnqueue(Chunk pChunk, MeshGenerator pGenerator)
-    {
-        if (pChunk == null || pGenerator == null) return;
-
-        mQueue.Enqueue(new RenderJob(pChunk, pGenerator));
-        mInWait.TryAdd(pChunk, 0); // no bloquea si ya está
-        StartWorker();
-    }
+  
 
     // ---- WORKER LOOP ----
     private void StartWorker()
@@ -92,8 +85,8 @@ public class RenderStackAsync
     {
         Chunk vChunk = vRequest.mChunk;
 
-        if (vChunk.mTargetSize > 0)
-            vChunk.Redim(vChunk.mTargetSize);
+        //if (vChunk.mTargetSize > 0)
+        //    vChunk.Redim(vChunk.mTargetSize);
 
         MeshData vData = vRequest.mMeshGenerator.Generate(
             vChunk,
@@ -101,7 +94,6 @@ public class RenderStackAsync
             mGrid.mSizeInChunks
         );
 
-        vChunk.mTargetSize = 0;
 
         if (vData != null)
             mResultsLOD.Enqueue(new KeyValuePair<Chunk, MeshData>(vChunk, vData));
@@ -122,6 +114,9 @@ public class RenderStackAsync
         MeshFilter vMf = pChunk.mViewGO.GetComponent<MeshFilter>();
         if (vMf.sharedMesh != null) GameObject.Destroy(vMf.sharedMesh);
         vMf.sharedMesh = vMesh;
+
+        MeshCollider vMc = pChunk.mViewGO.GetComponent<MeshCollider>();
+        if (vMc != null) vMc.sharedMesh = vMesh;
 
         int index = pChunk.mIndex;
         int lodApplied = Grid.ResolutionToLodIndex(pChunk.mSize);

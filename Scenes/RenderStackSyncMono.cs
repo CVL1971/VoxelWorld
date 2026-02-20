@@ -42,8 +42,8 @@ public class RenderStackSyncMono
 
         try
         {
-            if (vChunk.mTargetSize > 0)
-                vChunk.Redim(vChunk.mTargetSize);
+            //if (vChunk.mTargetSize > 0)
+            //    vChunk.Redim(vChunk.mTargetSize);
 
             // EJECUCIÓN SÍNCRONA: Aquí verás cualquier error real
             MeshData vData = vRequest.mMeshGenerator.Generate(
@@ -52,7 +52,7 @@ public class RenderStackSyncMono
                 mGrid.mSizeInChunks
             );
 
-            vChunk.mTargetSize = 0;
+            //vChunk.mTargetSize = 0;
 
             if (vData != null)
             {

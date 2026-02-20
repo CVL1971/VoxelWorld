@@ -14,11 +14,9 @@ public sealed class Chunk
     /// <summary> Resolución actual del chunk (32, 16 u 8). </summary>
     public int mSize;
     /// <summary> Resolución objetivo para la próxima actualización de LOD. </summary>
-    public int mTargetSize = 0;
 
     public bool mIsEdited = false;
-    public bool mAwaitingResample = false;
-
+ 
     // Bools de estado para optimización de visibilidad
     public bool mBool1 = false; // Flag: Contiene geometría sólida
     public bool mBool2 = false; // Flag: Contiene aire/vacío

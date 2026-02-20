@@ -63,16 +63,13 @@ public class DecimationManager
     public void RequestLODChange(Chunk pChunk, int pTargetRes)
     {
         if (pChunk == null || pChunk.mIsEdited) return;
-
-        pChunk.mTargetSize = pTargetRes;
-        pChunk.mAwaitingResample = true;
         mPendingResamples[pChunk] = pTargetRes;
     }
 
    
 
     /// <summary>
-    /// Procesa hasta maxPerFrame chunks pendientes: Redim + Sample, luego Enqueue a remesh.
+    /// Procesa hasta maxPerFrame chunks pendientes: Redim, luego Enqueue a remesh.
     /// Solo despu?s de tener datos listos se encola (sin estado "dato sucio" en la cola).
     /// </summary>
     public int ProcessPendingResamples(int maxPerFrame)
@@ -89,9 +86,7 @@ public class DecimationManager
             Chunk chunk = kv.Key;
 
             chunk.Redim(targetRes);
-            chunk.mAwaitingResample = false;
-            chunk.mTargetSize = 0;
-            mRenderQueue.ForceEnqueue(chunk, mGenerator);
+            mRenderQueue.Enqueue(chunk, mGenerator);
 
             int vBase = VoxelUtils.GetInfoRes(targetRes);
             int vLodIndex = (int)VoxelUtils.LOD_DATA[vBase + 3];

@@ -58,11 +58,11 @@ public class RenderQueue
         {
             Chunk vChunk = vRequest.mChunk;
 
-            // 1. Gestión de LOD
-            if (vChunk.mTargetSize > 0)
-            {
-                vChunk.Redim(vChunk.mTargetSize);
-            }
+            //// 1. Gestión de LOD
+            //if (vChunk.mTargetSize > 0)
+            //{
+            //    vChunk.Redim(vChunk.mTargetSize);
+            //}
 
             // 2. Generación de malla (Lógica acoplada y rápida)
             MeshData vData = vRequest.mMeshGenerator.Generate(
@@ -71,7 +71,7 @@ public class RenderQueue
                 mGrid.mSizeInChunks
             );
 
-            vChunk.mTargetSize = 0;
+            //vChunk.mTargetSize = 0;
 
             // 3. Encolado de resultados
             if (vData != null)

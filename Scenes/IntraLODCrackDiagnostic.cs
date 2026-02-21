@@ -37,7 +37,7 @@ public class IntraLODCrackDiagnostic : MonoBehaviour
             {
                 if (c == null || c.mViewGO == null) continue;
 
-                Vector3 origin = c.mWorldOrigin;
+                Vector3 origin = c.WorldOrigin;
                 float size = (c.mSize > 0 ? c.mSize : VoxelUtils.UNIVERSAL_CHUNK_SIZE) * (VoxelUtils.UNIVERSAL_CHUNK_SIZE / (float)(c.mSize > 0 ? c.mSize : VoxelUtils.UNIVERSAL_CHUNK_SIZE));
                 float step = VoxelUtils.UNIVERSAL_CHUNK_SIZE / (float)(c.mSize > 0 ? c.mSize : VoxelUtils.UNIVERSAL_CHUNK_SIZE);
                 Vector3 sizeV = new Vector3(VoxelUtils.UNIVERSAL_CHUNK_SIZE, VoxelUtils.UNIVERSAL_CHUNK_SIZE, VoxelUtils.UNIVERSAL_CHUNK_SIZE);

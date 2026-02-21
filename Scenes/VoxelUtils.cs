@@ -52,9 +52,9 @@ public static class VoxelUtils
 
 
 
-        float gx = currentChunk.mWorldOrigin.x + x;
-        float gy = currentChunk.mWorldOrigin.y + y;
-        float gz = currentChunk.mWorldOrigin.z + z;
+        float gx = currentChunk.WorldOrigin.x + x;
+        float gy = currentChunk.WorldOrigin.y + y;
+        float gz = currentChunk.WorldOrigin.z + z;
 
         int cx = Mathf.FloorToInt(gx / UNIVERSAL_CHUNK_SIZE);
         int cy = Mathf.FloorToInt(gy / UNIVERSAL_CHUNK_SIZE);
@@ -81,9 +81,9 @@ public static class VoxelUtils
         int lodIdx = GetInfoRes(targetRes);
         float targetStep = LOD_DATA[lodIdx + 1];
 
-        float localX = gx - target.mWorldOrigin.x;
-        float localY = gy - target.mWorldOrigin.y;
-        float localZ = gz - target.mWorldOrigin.z;
+        float localX = gx - target.WorldOrigin.x;
+        float localY = gy - target.WorldOrigin.y;
+        float localZ = gz - target.WorldOrigin.z;
 
         // Convertimos la posici?n continua a ?ndices del grid del chunk vecino
         float fx = localX / targetStep;
@@ -327,9 +327,9 @@ public static class VoxelUtils
         float vStep = (float)LOD_DATA[lodIdx + 1];
 
         return SDFGenerator.Sample(new Vector3(
-            currentChunk.mWorldOrigin.x + (x * vStep),
-            currentChunk.mWorldOrigin.y + (y * vStep),
-            currentChunk.mWorldOrigin.z + (z * vStep)
+            currentChunk.WorldOrigin.x + (x * vStep),
+            currentChunk.WorldOrigin.y + (y * vStep),
+            currentChunk.WorldOrigin.z + (z * vStep)
         ));
     }
 
@@ -341,9 +341,9 @@ public static class VoxelUtils
 
     public static bool IsSolidGlobal(Chunk currentChunk, Chunk[] allChunks, Vector3Int worldSize, float x, float y, float z)
     {
-        float gx = currentChunk.mWorldOrigin.x + x;
-        float gy = currentChunk.mWorldOrigin.y + y;
-        float gz = currentChunk.mWorldOrigin.z + z;
+        float gx = currentChunk.WorldOrigin.x + x;
+        float gy = currentChunk.WorldOrigin.y + y;
+        float gz = currentChunk.WorldOrigin.z + z;
 
         int cx = Mathf.FloorToInt(gx / UNIVERSAL_CHUNK_SIZE);
         int cy = Mathf.FloorToInt(gy / UNIVERSAL_CHUNK_SIZE);
@@ -364,9 +364,9 @@ public static class VoxelUtils
         int lodIdx = GetInfoRes(targetRes);
         float targetStep = LOD_DATA[lodIdx + 1];
 
-        float localX = gx - target.mWorldOrigin.x;
-        float localY = gy - target.mWorldOrigin.y;
-        float localZ = gz - target.mWorldOrigin.z;
+        float localX = gx - target.WorldOrigin.x;
+        float localY = gy - target.WorldOrigin.y;
+        float localZ = gz - target.WorldOrigin.z;
 
         int idxX = Mathf.Clamp(Mathf.RoundToInt(localX / targetStep), 0, targetRes - 1);
         int idxY = Mathf.Clamp(Mathf.RoundToInt(localY / targetStep), 0, targetRes - 1);

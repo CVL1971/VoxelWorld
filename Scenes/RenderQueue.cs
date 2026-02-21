@@ -4,16 +4,7 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using UnityEngine;
 
-public struct RenderJob
-{
-    public Chunk mChunk;
-    public MeshGenerator mMeshGenerator;
-    public RenderJob(Chunk pChunk, MeshGenerator pMeshGenerator)
-    {
-        mChunk = pChunk;
-        mMeshGenerator = pMeshGenerator;
-    }
-}
+
 
 public class RenderQueue
 {

@@ -24,8 +24,8 @@ public class World : MonoBehaviour
     Vector3Int mGridInUnits;
     Vector3Int mGridInChunks;
     Mesh mWorldMesh;
-   
-    RenderStackAsync mRenderQueueAsync;
+
+    RenderQueueAsync mRenderQueueAsync;
 
     MeshGenerator mMeshGenerator;
     SurfaceNetsGeneratorQEF3caches mSurfaceNet = new SurfaceNetsGeneratorQEF3caches();
@@ -58,14 +58,14 @@ public class World : MonoBehaviour
        
 
         mChunkSize = VoxelUtils.UNIVERSAL_CHUNK_SIZE;
-        mGridInChunks = new Vector3Int(128, 4, 128);
+        mGridInChunks = new Vector3Int(64, 4, 64);
         mGridInUnits = mGridInChunks * mChunkSize;
         mGrid = new Grid(mGridInChunks, mChunkSize);
 
         mGrid.ApplyToChunks(SDFGenerator.Sample);
         //SDFGenerator.LoadHeightmapToGrid(mGrid, @"E:\maps\1.png");
         mGrid.ApplyToChunks(mGrid.MarkSurface); 
-        mRenderQueueAsync = new RenderStackAsync(mGrid);
+        mRenderQueueAsync = new RenderQueueAsync(mGrid);
         InitWorld();
        
         #region Vigilante Lod Code

@@ -73,7 +73,7 @@ public static class SDFGenerator
         {
             pChunk.mSize = N;
             int paddedRes = N + 3;
-            Vector3Int origin = pChunk.mWorldOrigin;
+            Vector3Int origin = pChunk.WorldOrigin;
             float vStep = (float)VoxelUtils.UNIVERSAL_CHUNK_SIZE / (float)N;
 
             for (int z = 0; z < paddedRes; z++)

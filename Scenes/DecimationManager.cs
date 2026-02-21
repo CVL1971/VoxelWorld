@@ -41,7 +41,7 @@ using UnityEngine;
 
 public class DecimationManager
 {
-    private RenderStackAsync mRenderQueue;
+    private RenderQueueAsync mRenderQueue;
     private MeshGenerator mGenerator;
 
     /// <summary>
@@ -50,7 +50,7 @@ public class DecimationManager
     /// </summary>
     private ConcurrentDictionary<Chunk, int> mPendingResamples = new ConcurrentDictionary<Chunk, int>();
 
-    public void Setup(RenderStackAsync pQueue, MeshGenerator pGenerator)
+    public void Setup(RenderQueueAsync pQueue, MeshGenerator pGenerator)
     {
         mRenderQueue = pQueue;
         mGenerator = pGenerator;

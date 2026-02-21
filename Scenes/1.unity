@@ -129,6 +129,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1401079139}
   - component: {fileID: 1401079140}
+  - component: {fileID: 1401079141}
   m_Layer: 0
   m_Name: GameObject
   m_TagString: Untagged
@@ -164,6 +165,19 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SurfaceNetsUnitTest
   mat: {fileID: 2100000, guid: 17888c2f0b035df4e900981c1409a556, type: 2}
+--- !u!114 &1401079141
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1401079137}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0f49c7385473bc1468349157321c8d45, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CPULoadMonitor
+  UpdateInterval: 0.5
 --- !u!1 &1487303248
 GameObject:
   m_ObjectHideFlags: 0
@@ -545,7 +559,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 275de0c56fce77c41bca03f186c31545, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::FPSCamera
-  mMoveSpeed: 80
+  mMoveSpeed: 175
   mFastMultiplier: 3
   mMouseSensitivity: 1
   mMaxLookAngle: 85

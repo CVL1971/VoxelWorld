@@ -8,7 +8,7 @@ public sealed class Chunk
     // =========================================================
     public readonly Vector3Int mCoord;
     public readonly Grid mGrid;
-    public readonly Vector3Int mWorldOrigin;
+    private Vector3Int mWorldOrigin;
     public readonly int mIndex;
 
     /// <summary> Resolución actual del chunk (32, 16 u 8). </summary>
@@ -48,31 +48,26 @@ public sealed class Chunk
 
         // El origen mundial se basa siempre en el tamaño universal (32) 
         // para que los chunks no se muevan al cambiar de LOD.
-        mWorldOrigin = new Vector3Int(
-            pCoord.x * VoxelUtils.UNIVERSAL_CHUNK_SIZE,
-            pCoord.y * VoxelUtils.UNIVERSAL_CHUNK_SIZE,
-            pCoord.z * VoxelUtils.UNIVERSAL_CHUNK_SIZE
-        );
+        mWorldOrigin = Vector3Int.zero;
+
 
         DeclareSampleArray();
     }
 
-    // Constructor SOLO para unit tests
-    public Chunk(Vector3Int pCoord, int pSize)
+    public Vector3Int WorldOrigin
     {
-        mCoord = pCoord;
-        mSize = pSize;
-        mGrid = null;
-        mIndex = 0;
+        get
+        {
+           
+            mWorldOrigin.x = (mGrid.mXOffset + mCoord.x) * VoxelUtils.UNIVERSAL_CHUNK_SIZE;
+            mWorldOrigin.y = (mGrid.mYOffset + mCoord.y) * VoxelUtils.UNIVERSAL_CHUNK_SIZE;
+            mWorldOrigin.z = (mGrid.mZOffset + mCoord.z) * VoxelUtils.UNIVERSAL_CHUNK_SIZE;
 
-        mWorldOrigin = new Vector3Int(
-            pCoord.x * VoxelUtils.UNIVERSAL_CHUNK_SIZE,
-            pCoord.y * VoxelUtils.UNIVERSAL_CHUNK_SIZE,
-            pCoord.z * VoxelUtils.UNIVERSAL_CHUNK_SIZE
-        );
-
-        DeclareSampleArray();
+            return mWorldOrigin;
+        }
+       
     }
+
 
     public void DeclareSampleArray()
     {

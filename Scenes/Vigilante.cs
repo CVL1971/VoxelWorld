@@ -38,7 +38,7 @@ public class Vigilante
                 // 2. POSICIÓN SIN CHUNK
                 // Usamos la función que añadimos a VoxelUtils para evitar tocar el objeto Chunk
                 //Vector3 vCenter = VoxelUtils.GetChunkCenterByIndex(i, vGridSize, vChunkSize);
-                Vector3 vCenter = VoxelUtils.GetChunkCenter(mGrid.mChunks[i].mWorldOrigin, vChunkSize);
+                Vector3 vCenter = VoxelUtils.GetChunkCenter(mGrid.mChunks[i].WorldOrigin, vChunkSize);
                 float vDistSq = (vCenter - vCurrentCamPos).sqrMagnitude;
 
                 // 3. CÁLCULO DE OBJETIVO

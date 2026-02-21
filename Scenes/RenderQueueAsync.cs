@@ -5,6 +5,17 @@ using System.Threading;
 using System.Threading.Tasks;
 using UnityEngine;
 
+public struct RenderJob
+{
+    public Chunk mChunk;
+    public MeshGenerator mMeshGenerator;
+    public RenderJob(Chunk pChunk, MeshGenerator pMeshGenerator)
+    {
+        mChunk = pChunk;
+        mMeshGenerator = pMeshGenerator;
+    }
+}
+
 public class RenderQueueAsync
 {
     private readonly Grid mGrid;
@@ -99,7 +110,6 @@ public class RenderQueueAsync
     {
         if (pChunk.mViewGO == null) return;
 
-        // 1. GENERACIÓN DE MALLA (Sin cambios)
         Mesh vMesh = new Mesh();
         vMesh.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
         vMesh.SetVertices(pData.vertices);
@@ -114,52 +124,11 @@ public class RenderQueueAsync
         MeshCollider vMc = pChunk.mViewGO.GetComponent<MeshCollider>();
         if (vMc != null) vMc.sharedMesh = vMesh;
 
-        // 2. APLICACIÓN DE COLOR ESTABLE
-        MeshRenderer vMr = pChunk.mViewGO.GetComponent<MeshRenderer>();
-
         int index = pChunk.mIndex;
-
-        int targetLod = (mGrid.mStatusGrid[index] & Grid.MASK_LOD_TARGET) >> 4;
-        //3 Target Lod complete
-        mGrid.SetLod(index, 3);
-
-        // IMPORTANTE: Liberamos el bit de procesamiento. 
-        // Ahora el Vigilante puede volver a evaluar este chunk.
+        int lodApplied = Grid.ResolutionToLodIndex(pChunk.mSize);
+        mGrid.SetLod(index, lodApplied);
         mGrid.SetProcessing(index, false);
-
-
-        //if (vMr != null)
-        //{
-        //    MaterialPropertyBlock vPropBlock = new MaterialPropertyBlock();
-
-        //    vMr.GetPropertyBlock(vPropBlock);
-
-        //    // --- CORRECCIÓN DE Z-FIGHTING VISUAL ---
-
-        //    // Calculamos el factor de altura con un pequeño margen para evitar valores extremos (0 o 1)
-        //    float worldHeight = Mathf.Max(1, mGrid.mSizeInChunks.y);
-        //    float heightFactor = (float)pChunk.mCoord.y / worldHeight;
-        //    heightFactor = Mathf.Clamp(heightFactor, 0.01f, 0.99f);
-
-        //    // Usamos un ruido basado en una función de onda suave (Seno/Coseno) 
-        //    // En lugar de Repeat/Multiplicación, esto crea transiciones coherentes entre vecinos
-        //    float seed = (pChunk.mCoord.x * 0.13f) + (pChunk.mCoord.z * 0.17f);
-        //    float waveNoise = (Mathf.Sin(seed) + 1f) * 0.5f; // Normalizado 0 a 1
-
-        //    // Definimos los colores base
-        //    Color colorBajo = new Color(0.1f, 0.4f, 0.1f);
-        //    Color colorAlto = new Color(0.8f, 0.8f, 0.9f);
-
-        //    // MEZCLA FINAL: Aplicamos el ruido al factor de mezcla, NO al color final.
-        //    // Esto hace que el borde sea una transición de color y no un cambio de brillo.
-        //    float finalMix = Mathf.Lerp(heightFactor, waveNoise, 0.05f);
-        //    Color finalColor = Color.Lerp(colorBajo, colorAlto, finalMix);
-
-        //    vPropBlock.SetColor("_BaseColor", finalColor);
-        //    vPropBlock.SetColor("_Color", finalColor);
-        //    vMr.SetPropertyBlock(vPropBlock);
-        //}
+        
     }
-
 
 }

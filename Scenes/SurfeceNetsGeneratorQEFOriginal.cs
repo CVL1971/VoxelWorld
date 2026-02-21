@@ -35,7 +35,7 @@ public class SurfaceNetsGeneratorQEFOriginal : MeshGenerator
                         Vector3 localPos = ComputeCellVertexQEF(localCache, x, y, z, ISO_THRESHOLD, vStep);
                         meshData.vertices.Add(localPos);
 
-                        Vector3 worldPos = (Vector3)pChunk.mWorldOrigin + localPos;
+                        Vector3 worldPos = (Vector3)pChunk.WorldOrigin + localPos;
                         meshData.normals.Add(SDFGenerator.CalculateNormal(worldPos));
                     }
                     else vmap[x, y, z] = -1;

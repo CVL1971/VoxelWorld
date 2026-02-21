@@ -9,6 +9,9 @@ public class Grid
     public readonly int mChunkSize;
     public GameObject mWorldRoot;
     public delegate void ChunkAction(Chunk chunk);
+    public int mXOffset = 0;
+    public int mYOffset = 0;
+    public int mZOffset = 0;
 
     // MÁSCARAS DE BITS (Estructura de 16 bits)
 

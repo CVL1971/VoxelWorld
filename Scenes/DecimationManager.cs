@@ -43,6 +43,7 @@ public class DecimationManager
 {
     private RenderQueueAsync mRenderQueue;
     private MeshGenerator mGenerator;
+    private DensitySamplerQueueAsync mDensitySampler;
 
     /// <summary>
     /// Chunks pendientes de resample. No se encolan para remesh hasta que sus
@@ -50,9 +51,10 @@ public class DecimationManager
     /// </summary>
     private ConcurrentDictionary<Chunk, int> mPendingResamples = new ConcurrentDictionary<Chunk, int>();
 
-    public void Setup(RenderQueueAsync pQueue, MeshGenerator pGenerator)
+    public void Setup(RenderQueueAsync pQueue, DensitySamplerQueueAsync pDensitySampler, MeshGenerator pGenerator)
     {
         mRenderQueue = pQueue;
+        mDensitySampler = pDensitySampler;
         mGenerator = pGenerator;
     }
 

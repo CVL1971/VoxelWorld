@@ -122,13 +122,59 @@ public class RenderQueueAsync
         vMf.sharedMesh = vMesh;
 
         MeshCollider vMc = pChunk.mViewGO.GetComponent<MeshCollider>();
-        if (vMc != null) vMc.sharedMesh = vMesh;
+        if (vMc != null)
+        {
+            if (IsValidForCollider(pData))
+                vMc.sharedMesh = vMesh;
+            else
+            {
+                vMc.sharedMesh = null;
+                LogColliderSkip(pChunk, pData);
+            }
+        }
 
         int index = pChunk.mIndex;
         int lodApplied = Grid.ResolutionToLodIndex(pChunk.mSize);
         mGrid.SetLod(index, lodApplied);
         mGrid.SetProcessing(index, false);
-        
     }
 
+    /// <summary>
+    /// Unity exige "at least three distinct vertices" para MeshCollider.
+    /// Comprueba vértices totales y que haya al menos 3 posiciones distintas.
+    /// </summary>
+    private static bool IsValidForCollider(MeshData pData)
+    {
+        if (pData == null || pData.vertices == null || pData.vertices.Count < 3)
+            return false;
+        var distinct = new HashSet<Vector3>();
+        for (int i = 0; i < pData.vertices.Count; i++)
+            distinct.Add(pData.vertices[i]);
+        return distinct.Count >= 3;
+    }
+
+    private static int _colliderSkipLogCount = 0;
+    private const int COLLIDER_SKIP_LOG_CAP = 50;
+
+    /// <summary>
+    /// Diagnóstico: por qué se omitió el collider (para dar certeza, no teoría).
+    /// </summary>
+    private static void LogColliderSkip(Chunk pChunk, MeshData pData)
+    {
+        int totalV = pData?.vertices?.Count ?? 0;
+        int distinctV = 0;
+        if (pData != null && pData.vertices != null && pData.vertices.Count > 0)
+        {
+            var set = new HashSet<Vector3>();
+            for (int i = 0; i < pData.vertices.Count; i++)
+                set.Add(pData.vertices[i]);
+            distinctV = set.Count;
+        }
+        int totalT = pData?.triangles?.Count ?? 0;
+        _colliderSkipLogCount++;
+        if (_colliderSkipLogCount <= COLLIDER_SKIP_LOG_CAP)
+            Debug.LogWarning($"[ColliderSkip #{_colliderSkipLogCount}] chunk={pChunk.mCoord} mSize={pChunk.mSize} mBool1={pChunk.mBool1} mBool2={pChunk.mBool2} | vertices={totalV} distinct={distinctV} triangles={totalT} | collider requiere >=3 distintos.");
+        else if (_colliderSkipLogCount == COLLIDER_SKIP_LOG_CAP + 1)
+            Debug.LogWarning($"[ColliderSkip] Más skips (total>{COLLIDER_SKIP_LOG_CAP}). Dejar de loguear hasta reinicio.");
+    }
 }

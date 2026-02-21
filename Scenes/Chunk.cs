@@ -149,7 +149,7 @@ public sealed class Chunk
             for (int y = 0; y < mSize; y++)
                 for (int x = 0; x < mSize; x++)
                 {
-                    Vector3 vWorldPos = (Vector3)mWorldOrigin + new Vector3(x, y, z) * vStep;
+                    Vector3 vWorldPos = (Vector3)WorldOrigin + new Vector3(x, y, z) * vStep;
                     float vDistThreshold = pBrush.mRadius + pBrush.mK * 2f;
 
                     if (Vector3.Distance(vWorldPos, pBrush.mCenter) <= vDistThreshold)
@@ -170,7 +170,7 @@ public sealed class Chunk
         {
             mViewGO = new GameObject("Chunk_" + mCoord, typeof(MeshFilter), typeof(MeshRenderer), typeof(MeshCollider));
             mViewGO.transform.parent = worldRoot;
-            mViewGO.transform.position = (Vector3)mWorldOrigin;
+            mViewGO.transform.position = (Vector3)WorldOrigin;
             mViewGO.GetComponent<MeshRenderer>().sharedMaterial = surfaceMaterial;
         }
     }
@@ -210,7 +210,7 @@ public sealed class Chunk
     public void DrawDebug(Color pColor, float pduration)
     {
         // Usamos siempre el tamaño universal para el dibujo del cubo debug
-        Vector3 min = (Vector3)mWorldOrigin;
+        Vector3 min = (Vector3)WorldOrigin;
         float s = VoxelUtils.UNIVERSAL_CHUNK_SIZE;
         Vector3 max = min + new Vector3(s, s, s);
 

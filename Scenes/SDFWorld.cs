@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading;
@@ -26,6 +27,7 @@ public class World : MonoBehaviour
     Mesh mWorldMesh;
 
     RenderQueueAsync mRenderQueueAsync;
+    DensitySamplerQueueAsync mDensitySampler;
 
     MeshGenerator mMeshGenerator;
     SurfaceNetsGeneratorQEF3caches mSurfaceNet = new SurfaceNetsGeneratorQEF3caches();
@@ -62,17 +64,18 @@ public class World : MonoBehaviour
         mGridInUnits = mGridInChunks * mChunkSize;
         mGrid = new Grid(mGridInChunks, mChunkSize);
 
-        mGrid.ApplyToChunks(SDFGenerator.Sample);
+        //mGrid.ApplyToChunks(SDFGenerator.Sample);
         //SDFGenerator.LoadHeightmapToGrid(mGrid, @"E:\maps\1.png");
-        mGrid.ApplyToChunks(mGrid.MarkSurface); 
+        //mGrid.ApplyToChunks(mGrid.MarkSurface); 
         mRenderQueueAsync = new RenderQueueAsync(mGrid);
+        mDensitySampler = new DensitySamplerQueueAsync();
+        // 2. Inicializar el Decimator (Cerebro)
+        mDecimator = new DecimationManager();
+        mDecimator.Setup(mRenderQueueAsync, mDensitySampler, mSurfaceNetQEF);
         InitWorld();
        
         #region Vigilante Lod Code
-        // 2. Inicializar el Decimator (Cerebro)
-        mDecimator = new DecimationManager();
-        mDecimator.Setup(mRenderQueueAsync, mSurfaceNetQEF);
-
+       
         // 3. Inicializar el Vigilante (Ojos)
         mVigilante = new Vigilante();
         mVigilante.Setup(mGrid, mDecimator); // O el transform del Player
@@ -96,9 +99,10 @@ public class World : MonoBehaviour
 
         for (int i = 0; i < mGrid.mChunks.Length; i++)
         {
+            mGrid.SetProcessing(i, true);
             Chunk vChunk = mGrid.mChunks[i];
             vChunk.PrepareView(mGrid.mWorldRoot.transform, mSurfaceMaterial);
-            mRenderQueueAsync.Enqueue(vChunk, mMeshGenerator);
+            mDensitySampler.Enqueue(vChunk);
         }
 
         //mRenderQueueMulti.ProcessParallel(-1);
@@ -138,6 +142,12 @@ public class World : MonoBehaviour
         //    Con 3 caches por chunk no hay resample, solo cambio de mSize y mallado
         if (mDecimator != null)
             mDecimator.ProcessPendingResamples(20);
+
+        while (mDensitySampler.DensitySamplerResult.TryDequeue(out var r))
+        {
+            mGrid.MarkSurface(r);
+            mRenderQueueAsync.Enqueue(r, mMeshGenerator);
+        }
 
         // 2. Aplicar todos los resultados de mallado disponibles este frame
         while (mRenderQueueAsync.mResultsLOD.TryDequeue(out var r))

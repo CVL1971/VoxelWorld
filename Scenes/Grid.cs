@@ -3,6 +3,8 @@ using System.Collections.Generic;
 
 public class Grid
 {
+    // 1. Declaramos la variable miembro inicializada a zero
+    //private Vector3 mWorldPosition = Vector3.zero;
     public readonly Chunk[] mChunks;
     public readonly ushort[] mStatusGrid;
     public readonly Vector3Int mSizeInChunks;
@@ -49,6 +51,22 @@ public class Grid
                 }
 
     }
+
+    // 1. Declaramos la variable miembro inicializada a zero
+    private Vector3 mInternalWorldOrigin = Vector3.zero;
+
+    // 2. Propiedad que setea los valores y devuelve la variable sin usar 'new'
+    //public Vector3 WorldPosition
+    //{
+    //    get
+    //    {
+    //        mWorldPosition.x = mXOffset * VoxelUtils.UNIVERSAL_CHUNK_SIZE;
+    //        mWorldPosition.y = mYOffset * VoxelUtils.UNIVERSAL_CHUNK_SIZE;
+    //        mWorldPosition.z = mZOffset * VoxelUtils.UNIVERSAL_CHUNK_SIZE;
+
+    //        return mWorldPosition;
+    //    }
+    //}
 
     public static int ResolutionToLodIndex(int pRes)
     {

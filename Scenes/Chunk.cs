@@ -64,6 +64,8 @@ public sealed class Chunk
             mWorldOrigin.z = (mGrid.mZOffset + mCoord.z) * VoxelUtils.UNIVERSAL_CHUNK_SIZE;
 
             return mWorldOrigin;
+
+
         }
        
     }

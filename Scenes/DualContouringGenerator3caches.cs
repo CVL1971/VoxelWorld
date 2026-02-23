@@ -1,307 +1,297 @@
 using UnityEngine;
 using System.Collections.Generic;
 
-/// <summary>
-/// Dual Contouring sobre las 3 cachés del chunk. Geometría solo en dominio 0..size (nunca en padding).
-/// Posiciona cada vértice minimizando el QEF respecto a las intersecciones de aristas y sus normales.
-/// </summary>
 public class DualContouringGenerator3caches : MeshGenerator
 {
-    private const float ISO_THRESHOLD = 0.5f;
+    private const float ISO_THRESHOLD = 0f; // usa 0 si tu SDF es signed
 
-    public override MeshData Generate(Chunk pChunk, Chunk[] allChunks, Vector3Int worldSize)
+    public override MeshData Generate(Chunk chunk, Chunk[] allChunks, Vector3Int worldSize)
     {
-        int size = pChunk.mSize <= 0 ? VoxelUtils.UNIVERSAL_CHUNK_SIZE : pChunk.mSize;
+        int size = chunk.mSize <= 0 ? VoxelUtils.UNIVERSAL_CHUNK_SIZE : chunk.mSize;
         int lodIndex = VoxelUtils.GetInfoRes(size);
         float vStep = VoxelUtils.LOD_DATA[lodIndex + 1];
 
-        MeshData meshData = new MeshData();
+        MeshData mesh = new MeshData();
 
-        float[] cache = (lodIndex == 0) ? pChunk.mSample0 :
-                        (lodIndex == 4) ? pChunk.mSample1 : pChunk.mSample2;
-        if (cache == null) return meshData;
+        float[] cache = (lodIndex == 0) ? chunk.mSample0 :
+                        (lodIndex == 4) ? chunk.mSample1 : chunk.mSample2;
 
+        if (cache == null) return mesh;
+
+        // Stride debe coincidir con Chunk: array (size+3)^3, posiciones -1..size+1
         int p = size + 3;
-        int vmapSize = size + 2;
-        int[,,] vmap = new int[vmapSize, vmapSize, vmapSize];
-        for (int i = 0; i < vmapSize; i++)
-            for (int j = 0; j < vmapSize; j++)
-                for (int k = 0; k < vmapSize; k++)
-                    vmap[i, j, k] = -1;
 
-        for (int z = -1; z <= size; z++)
+        // vmap incluye celdas -1..size para geometría en bordes (conexión entre chunks)
+        int n = size + 2;
+        int[,,] vmap = new int[n, n, n];
+        for (int x = 0; x < n; x++)
+            for (int y = 0; y < n; y++)
+                for (int z = 0; z < n; z++)
+                    vmap[x, y, z] = -1;
+
+        // 1) UN VÉRTICE POR CELDA QUE CRUZA EL ISO (celdas -1..size)
+        for (int x = -1; x <= size; x++)
             for (int y = -1; y <= size; y++)
-                for (int x = -1; x <= size; x++)
+                for (int z = -1; z <= size; z++)
                 {
-                    if (!CellCrossesIso(cache, x, y, z, p, ISO_THRESHOLD)) continue;
-                    int vx = x + 1, vy = y + 1, vz = z + 1;
-                    vmap[vx, vy, vz] = meshData.vertices.Count;
-                    Vector3 localPos;
-                    if (x == -1 || y == -1 || z == -1)
-                        localPos = CanonicalPositionForCell(x, y, z, size, vStep);
-                    else
-                    {
-                        localPos = SolveQEF(cache, x, y, z, p, ISO_THRESHOLD, vStep, size, lodIndex);
-                        localPos = SnapVertexToBoundary(localPos, x, y, z, size, vStep);
-                    }
-                    meshData.vertices.Add(localPos);
-                    Vector3 normal = ComputeNormalFromCache(cache, x, y, z, p, size, lodIndex);
-                    meshData.normals.Add(normal);
+                    if (!CellCrossesIso(cache, x, y, z, p))
+                        continue;
+
+                    Vector3 pos = SolveQEFStable(chunk, cache, x, y, z, p, vStep);
+
+                    int index = mesh.vertices.Count;
+                    vmap[x + 1, y + 1, z + 1] = index;
+                    mesh.vertices.Add(pos);
+
+                    Vector3 world = (Vector3)chunk.WorldOrigin + pos;
+                    mesh.normals.Add(SDFGenerator.CalculateNormal(world));
                 }
 
-        for (int z = -1; z <= size; z++)
-            for (int y = -1; y <= size; y++)
-                for (int x = -1; x <= size; x++)
-                    EmitFaces(cache, x, y, z, p, ISO_THRESHOLD, vmap, meshData.triangles, size);
+        // 2) CARAS POR ARISTA
+        EmitEdgesX(cache, vmap, mesh.triangles, size, p);
+        EmitEdgesY(cache, vmap, mesh.triangles, size, p);
+        EmitEdgesZ(cache, vmap, mesh.triangles, size, p);
 
-        SmoothNormalsWeighted(meshData);
-        ClampToChunkDomain(meshData.vertices, vStep, size);
-
-        return meshData;
+        return mesh;
     }
 
-    /// <summary>
-    /// Posición canónica para celdas de borde (incl. capa -1). Mismo resultado en ambos lados del borde.
-    /// </summary>
-    private Vector3 CanonicalPositionForCell(int cx, int cy, int cz, int size, float vStep)
+    // ==================== EDGE EMISSION ======================
+
+    // Eje X: aristas (x,y,z)-(x+1,y,z). Celdas (x,y-1,z-1)..(x,y,z). vmap[i,j,k] = celda (i-1,j-1,k-1)
+    void EmitEdgesX(float[] cache, int[,,] vmap, List<int> tris, int size, int p)
     {
-        float maxC = size * vStep;
-        float px = (cx == -1) ? 0f : (cx == size) ? maxC : (cx + 0.5f) * vStep;
-        float py = (cy == -1) ? 0f : (cy == size) ? maxC : (cy + 0.5f) * vStep;
-        float pz = (cz == -1) ? 0f : (cz == size) ? maxC : (cz + 0.5f) * vStep;
-        return new Vector3(px, py, pz);
+        for (int x = -1; x < size; x++)
+            for (int y = 0; y <= size; y++)
+                for (int z = 0; z <= size; z++)
+                {
+                    float d0 = GetD(cache, x, y, z, p);
+                    float d1 = GetD(cache, x + 1, y, z, p);
+
+                    if (!SignChange(d0, d1)) continue;
+
+                    int v00 = vmap[x + 1, y, z];
+                    int v10 = vmap[x + 1, y + 1, z];
+                    int v11 = vmap[x + 1, y + 1, z + 1];
+                    int v01 = vmap[x + 1, y, z + 1];
+
+                    AddQuadConsistent(tris, v00, v10, v11, v01, d0);
+                }
     }
 
-    /// <summary>
-    /// En celdas de borde (índice 0 o size-1), usa posición canónica para coincidencia con el vecino.
-    /// </summary>
-    private Vector3 SnapVertexToBoundary(Vector3 pos, int cx, int cy, int cz, int size, float vStep)
+    // Eje Y: aristas (x,y,z)-(x,y+1,z). Celdas (x-1,y,z-1)..(x,y,z)
+    void EmitEdgesY(float[] cache, int[,,] vmap, List<int> tris, int size, int p)
     {
-        bool onBoundary = (cx == 0 || cx == size - 1 || cy == 0 || cy == size - 1 || cz == 0 || cz == size - 1);
-        if (!onBoundary) return pos;
-        return CanonicalPositionForCell(cx, cy, cz, size, vStep);
+        for (int x = 0; x <= size; x++)
+            for (int y = -1; y < size; y++)
+                for (int z = 0; z <= size; z++)
+                {
+                    float d0 = GetD(cache, x, y, z, p);
+                    float d1 = GetD(cache, x, y + 1, z, p);
+
+                    if (!SignChange(d0, d1)) continue;
+
+                    int v00 = vmap[x, y + 1, z];
+                    int v10 = vmap[x + 1, y + 1, z];
+                    int v11 = vmap[x + 1, y + 1, z + 1];
+                    int v01 = vmap[x, y + 1, z + 1];
+
+                    AddQuadConsistent(tris, v00, v01, v11, v10, d0);
+                }
     }
 
-    /// <summary>
-    /// Suaviza normales promediando por área de cara (triángulos grandes pesan más) para reducir ruido de iluminación.
-    /// </summary>
-    private void SmoothNormalsWeighted(MeshData meshData)
+    // Eje Z: aristas (x,y,z)-(x,y,z+1). Celdas (x-1,y-1,z)..(x,y,z)
+    void EmitEdgesZ(float[] cache, int[,,] vmap, List<int> tris, int size, int p)
     {
-        List<Vector3> verts = meshData.vertices;
-        List<int> tris = meshData.triangles;
-        if (verts.Count == 0 || tris.Count < 3) return;
+        for (int x = 0; x <= size; x++)
+            for (int y = 0; y <= size; y++)
+                for (int z = -1; z < size; z++)
+                {
+                    float d0 = GetD(cache, x, y, z, p);
+                    float d1 = GetD(cache, x, y, z + 1, p);
 
-        Vector3[] smoothNormals = new Vector3[verts.Count];
-        for (int i = 0; i < tris.Count; i += 3)
+                    if (!SignChange(d0, d1)) continue;
+
+                    int v00 = vmap[x, y, z + 1];
+                    int v10 = vmap[x + 1, y, z + 1];
+                    int v11 = vmap[x + 1, y + 1, z + 1];
+                    int v01 = vmap[x, y + 1, z + 1];
+
+                    AddQuadConsistent(tris, v00, v10, v11, v01, d0);
+                }
+    }
+
+    // Orientación consistente según el signo en el lado "negativo" de la arista
+    void AddQuadConsistent(List<int> tris, int a, int b, int c, int d, float d0)
+    {
+        if (a < 0 || b < 0 || c < 0 || d < 0) return;
+
+        // d0 < 0 => interior en el lado "negativo" de la arista, normal hacia exterior
+        if (d0 < ISO_THRESHOLD)
         {
-            int i0 = tris[i], i1 = tris[i + 1], i2 = tris[i + 2];
-            Vector3 a = verts[i0], b = verts[i1], c = verts[i2];
-            Vector3 faceNormal = Vector3.Cross(b - a, c - a);
-            float area = faceNormal.magnitude;
-            if (area < 1e-10f) continue;
-            faceNormal /= area;
-            smoothNormals[i0] += faceNormal * area;
-            smoothNormals[i1] += faceNormal * area;
-            smoothNormals[i2] += faceNormal * area;
+            tris.Add(a); tris.Add(b); tris.Add(c);
+            tris.Add(a); tris.Add(c); tris.Add(d);
         }
-        meshData.normals.Clear();
-        for (int i = 0; i < verts.Count; i++)
+        else
         {
-            Vector3 n = smoothNormals[i];
-            meshData.normals.Add(n.sqrMagnitude < 1e-10f ? Vector3.up : n.normalized);
+            tris.Add(a); tris.Add(d); tris.Add(c);
+            tris.Add(a); tris.Add(c); tris.Add(b);
         }
     }
 
-    /// <summary>
-    /// Limita todas las posiciones al dominio [0, size*vStep] del chunk.
-    /// </summary>
-    private void ClampToChunkDomain(List<Vector3> vertices, float vStep, int size)
+    // ====================== QEF SOLVER =======================
+
+    Vector3 SolveQEFStable(Chunk chunk, float[] cache,
+        int x, int y, int z, int p, float step)
     {
-        float maxC = size * vStep;
-        for (int i = 0; i < vertices.Count; i++)
+        List<Vector3> pts = new();
+        List<Vector3> nms = new();
+
+        void Check(int x0, int y0, int z0, int x1, int y1, int z1)
         {
-            Vector3 v = vertices[i];
-            v.x = Mathf.Clamp(v.x, 0f, maxC);
-            v.y = Mathf.Clamp(v.y, 0f, maxC);
-            v.z = Mathf.Clamp(v.z, 0f, maxC);
-            vertices[i] = v;
+            float d0 = GetD(cache, x0, y0, z0, p);
+            float d1 = GetD(cache, x1, y1, z1, p);
+            if (!SignChange(d0, d1)) return;
+
+            float t = d0 / (d0 - d1);
+            Vector3 p0 = new Vector3(x0, y0, z0) * step;
+            Vector3 p1 = new Vector3(x1, y1, z1) * step;
+            Vector3 pos = Vector3.Lerp(p0, p1, t);
+
+            Vector3 world = (Vector3)chunk.WorldOrigin + pos;
+            Vector3 normal = SDFGenerator.CalculateNormal(world).normalized;
+
+            pts.Add(pos);
+            nms.Add(normal);
         }
+
+        // 12 aristas de la celda
+        Check(x, y, z, x + 1, y, z);
+        Check(x, y + 1, z, x + 1, y + 1, z);
+        Check(x, y, z + 1, x + 1, y, z + 1);
+        Check(x, y + 1, z + 1, x + 1, y + 1, z + 1);
+
+        Check(x, y, z, x, y + 1, z);
+        Check(x + 1, y, z, x + 1, y + 1, z);
+        Check(x, y, z + 1, x, y + 1, z + 1);
+        Check(x + 1, y, z + 1, x + 1, y + 1, z + 1);
+
+        Check(x, y, z, x, y, z + 1);
+        Check(x + 1, y, z, x + 1, y, z + 1);
+        Check(x, y + 1, z, x, y + 1, z + 1);
+        Check(x + 1, y + 1, z, x + 1, y + 1, z + 1);
+
+        if (pts.Count == 0)
+            return new Vector3((x + 0.5f) * step, (y + 0.5f) * step, (z + 0.5f) * step);
+
+        return SolveLeastSquaresClamped(pts, nms, x, y, z, step);
     }
 
-    private float GetD(float[] c, int x, int y, int z, int p)
+    Vector3 SolveLeastSquaresClamped(
+        List<Vector3> pts,
+        List<Vector3> nms,
+        int cx, int cy, int cz, float step)
     {
-        return c[(x + 1) + p * ((y + 1) + p * (z + 1))];
-    }
+        float m00 = 0, m01 = 0, m02 = 0, m11 = 0, m12 = 0, m22 = 0;
+        float b0 = 0, b1 = 0, b2 = 0;
 
-    private Vector3 ComputeNormalFromCache(float[] cache, int cx, int cy, int cz, int p, int size, int lodIndex)
-    {
-        int radius = 2;
-        float gx = 0f, gy = 0f, gz = 0f;
-        int count = 0;
-        int maxCoord = size + 1;
-        for (int dz = -radius; dz <= radius; dz++)
-        for (int dy = -radius; dy <= radius; dy++)
-        for (int dx = -radius; dx <= radius; dx++)
+        for (int i = 0; i < pts.Count; i++)
         {
-            int nx = Mathf.Clamp(cx + dx, -1, size);
-            int ny = Mathf.Clamp(cy + dy, -1, size);
-            int nz = Mathf.Clamp(cz + dz, -1, size);
-            gx += GetD(cache, Mathf.Clamp(nx - 1, -1, maxCoord), ny, nz, p) - GetD(cache, Mathf.Clamp(nx + 1, -1, maxCoord), ny, nz, p);
-            gy += GetD(cache, nx, Mathf.Clamp(ny - 1, -1, maxCoord), nz, p) - GetD(cache, nx, Mathf.Clamp(ny + 1, -1, maxCoord), nz, p);
-            gz += GetD(cache, nx, ny, Mathf.Clamp(nz - 1, -1, maxCoord), p) - GetD(cache, nx, ny, Mathf.Clamp(nz + 1, -1, maxCoord), p);
-            count++;
+            Vector3 n = nms[i];
+            Vector3 p = pts[i];
+            float d = Vector3.Dot(n, p);
+
+            m00 += n.x * n.x; m01 += n.x * n.y; m02 += n.x * n.z;
+            m11 += n.y * n.y; m12 += n.y * n.z;
+            m22 += n.z * n.z;
+
+            b0 += d * n.x;
+            b1 += d * n.y;
+            b2 += d * n.z;
         }
-        Vector3 grad = new Vector3(gx / count, gy / count, gz / count);
-        return grad.sqrMagnitude < 0.0001f ? Vector3.up : grad.normalized;
+
+        // matriz simétrica:
+        // [m00 m01 m02]
+        // [m01 m11 m12]
+        // [m02 m12 m22]
+
+        float det =
+            m00 * (m11 * m22 - m12 * m12)
+          - m01 * (m01 * m22 - m12 * m02)
+          + m02 * (m01 * m12 - m11 * m02);
+
+        Vector3 result;
+
+        if (Mathf.Abs(det) < 1e-8f)
+        {
+            // mal condicionada: media simple
+            result = Average(pts);
+        }
+        else
+        {
+            float c00 = m11 * m22 - m12 * m12;
+            float c01 = m02 * m12 - m01 * m22;
+            float c02 = m01 * m12 - m02 * m11;
+            float c11 = m00 * m22 - m02 * m02;
+            float c12 = m01 * m02 - m00 * m12;
+            float c22 = m00 * m11 - m01 * m01;
+
+            float invDet = 1f / det;
+
+            float x = (c00 * b0 + c01 * b1 + c02 * b2) * invDet;
+            float y = (c01 * b0 + c11 * b1 + c12 * b2) * invDet;
+            float z = (c02 * b0 + c12 * b1 + c22 * b2) * invDet;
+
+            result = new Vector3(x, y, z);
+        }
+
+        // Clamp al AABB de la celda
+        float minX = cx * step, maxX = (cx + 1) * step;
+        float minY = cy * step, maxY = (cy + 1) * step;
+        float minZ = cz * step, maxZ = (cz + 1) * step;
+
+        result.x = Mathf.Clamp(result.x, minX, maxX);
+        result.y = Mathf.Clamp(result.y, minY, maxY);
+        result.z = Mathf.Clamp(result.z, minZ, maxZ);
+
+        return result;
     }
 
-    private bool CellCrossesIso(float[] cache, int x, int y, int z, int p, float iso)
+    Vector3 Average(List<Vector3> pts)
     {
-        bool first = GetD(cache, x, y, z, p) >= iso;
+        Vector3 sum = Vector3.zero;
+        foreach (var p in pts) sum += p;
+        return sum / pts.Count;
+    }
+
+    // ====================== HELPERS ==========================
+
+    // Usa cambio de signo estricto para evitar duplicidades en valores exactamente 0
+    bool SignChange(float a, float b)
+        => (a < ISO_THRESHOLD && b > ISO_THRESHOLD)
+        || (a > ISO_THRESHOLD && b < ISO_THRESHOLD);
+
+    bool CellCrossesIso(float[] cache, int x, int y, int z, int p)
+    {
+        float d0 = GetD(cache, x, y, z, p);
+        bool sign = d0 < ISO_THRESHOLD;
+
         for (int i = 1; i < 8; i++)
         {
-            float d = GetD(cache, x + (i & 1), y + ((i >> 1) & 1), z + ((i >> 2) & 1), p);
-            if ((d >= iso) != first) return true;
+            float d = GetD(cache,
+                x + (i & 1),
+                y + ((i >> 1) & 1),
+                z + ((i >> 2) & 1),
+                p);
+
+            if ((d < ISO_THRESHOLD) != sign)
+                return true;
         }
         return false;
     }
 
-    /// <summary>
-    /// Dual Contouring: minimiza QEF sobre (posición, normal) de cada arista que cruza el iso.
-    /// Devuelve el vértice en espacio local (coords * vStep). Solo usa celdas en 0..size.
-    /// </summary>
-    private Vector3 SolveQEF(float[] cache, int x, int y, int z, int p, float iso, float vStep, int size, int lodIndex)
+    float GetD(float[] c, int x, int y, int z, int p)
     {
-        List<Vector3> positions = new List<Vector3>();
-        List<Vector3> normals = new List<Vector3>();
-
-        void AddEdge(int x0, int y0, int z0, int x1, int y1, int z1)
-        {
-            float d0 = GetD(cache, x0, y0, z0, p);
-            float d1 = GetD(cache, x1, y1, z1, p);
-            if ((d0 < iso && d1 >= iso) || (d0 >= iso && d1 < iso))
-            {
-                float t = Mathf.Clamp01((iso - d0) / (d1 - d0 + 0.000001f));
-                Vector3 p0 = new Vector3(x0, y0, z0) * vStep;
-                Vector3 p1 = new Vector3(x1, y1, z1) * vStep;
-                Vector3 pos = Vector3.Lerp(p0, p1, t);
-                int mx = (int)Mathf.Round(x0 + t * (x1 - x0));
-                int my = (int)Mathf.Round(y0 + t * (y1 - y0));
-                int mz = (int)Mathf.Round(z0 + t * (z1 - z0));
-                mx = Mathf.Clamp(mx, 0, size);
-                my = Mathf.Clamp(my, 0, size);
-                mz = Mathf.Clamp(mz, 0, size);
-                Vector3 n = ComputeNormalFromCache(cache, mx, my, mz, p, size, lodIndex);
-                positions.Add(pos);
-                normals.Add(n);
-            }
-        }
-
-        AddEdge(x, y, z, x + 1, y, z); AddEdge(x, y + 1, z, x + 1, y + 1, z);
-        AddEdge(x, y, z + 1, x + 1, y, z + 1); AddEdge(x, y + 1, z + 1, x + 1, y + 1, z + 1);
-        AddEdge(x, y, z, x, y + 1, z); AddEdge(x + 1, y, z, x + 1, y + 1, z);
-        AddEdge(x, y, z + 1, x, y + 1, z + 1); AddEdge(x + 1, y, z + 1, x + 1, y + 1, z + 1);
-        AddEdge(x, y, z, x, y, z + 1); AddEdge(x + 1, y, z, x + 1, y, z + 1);
-        AddEdge(x, y + 1, z, x, y + 1, z + 1); AddEdge(x + 1, y + 1, z, x + 1, y + 1, z + 1);
-
-        if (positions.Count == 0)
-            return new Vector3(x + 0.5f, y + 0.5f, z + 0.5f) * vStep;
-
-        Vector3 mass = Vector3.zero;
-        for (int i = 0; i < positions.Count; i++) mass += positions[i];
-        mass /= positions.Count;
-
-        float coherency = 0f;
-        if (normals.Count > 1)
-        {
-            for (int i = 1; i < normals.Count; i++)
-                coherency += Mathf.Max(0f, Vector3.Dot(normals[0], normals[i]));
-            coherency /= (normals.Count - 1);
-        }
-        bool useMassPoint = coherency < 0.4f;
-
-        float m00 = 0, m11 = 0, m22 = 0, m01 = 0, m02 = 0, m12 = 0;
-        float b0 = 0, b1 = 0, b2 = 0;
-        for (int i = 0; i < positions.Count; i++)
-        {
-            Vector3 n = normals[i];
-            Vector3 pos = positions[i];
-            float r = Vector3.Dot(n, pos);
-            m00 += n.x * n.x; m11 += n.y * n.y; m22 += n.z * n.z;
-            m01 += n.x * n.y; m02 += n.x * n.z; m12 += n.y * n.z;
-            b0 += r * n.x; b1 += r * n.y; b2 += r * n.z;
-        }
-
-        float det = m00 * (m11 * m22 - m12 * m12) - m01 * (m01 * m22 - m12 * m02) + m02 * (m01 * m12 - m11 * m02);
-        if (Mathf.Abs(det) < 1e-9f)
-            return mass;
-
-        float inv = 1f / det;
-        float a00 = (m11 * m22 - m12 * m12) * inv;
-        float a01 = (m02 * m12 - m01 * m22) * inv;
-        float a02 = (m01 * m12 - m02 * m11) * inv;
-        float a11 = (m00 * m22 - m02 * m02) * inv;
-        float a12 = (m01 * m02 - m00 * m12) * inv;
-        float a22 = (m00 * m11 - m01 * m01) * inv;
-        Vector3 v = new Vector3(
-            a00 * b0 + a01 * b1 + a02 * b2,
-            a01 * b0 + a11 * b1 + a12 * b2,
-            a02 * b0 + a12 * b1 + a22 * b2
-        );
-        Vector3 cellMin = new Vector3(x, y, z) * vStep;
-        Vector3 cellMax = new Vector3(x + 1, y + 1, z + 1) * vStep;
-        v.x = Mathf.Clamp(v.x, cellMin.x, cellMax.x);
-        v.y = Mathf.Clamp(v.y, cellMin.y, cellMax.y);
-        v.z = Mathf.Clamp(v.z, cellMin.z, cellMax.z);
-
-        float maxDisplacement = 0.45f * vStep;
-        if (useMassPoint || (mass - v).magnitude > maxDisplacement)
-            v = mass;
-        return v;
-    }
-
-    /// <summary>
-    /// Emite todas las caras (incl. x=0,y=0,z=0) usando vmap con offset +1; cierra bordes y esquinas.
-    /// </summary>
-    private void EmitFaces(float[] cache, int x, int y, int z, int p, float iso, int[,,] vmap, List<int> tris, int size)
-    {
-        int V(int lx, int ly, int lz) => vmap[lx + 1, ly + 1, lz + 1];
-        float d0 = GetD(cache, x, y, z, p);
-
-        if (x < size)
-        {
-            float d1 = GetD(cache, x + 1, y, z, p);
-            if ((d0 >= iso) != (d1 >= iso))
-            {
-                int v0 = V(x, y - 1, z - 1), v1 = V(x, y, z - 1), v2 = V(x, y, z), v3 = V(x, y - 1, z);
-                if (v0 >= 0 && v1 >= 0 && v2 >= 0 && v3 >= 0)
-                    if (d0 > d1) AddQuad(tris, v0, v1, v2, v3); else AddQuad(tris, v0, v3, v2, v1);
-            }
-        }
-        if (y < size)
-        {
-            float d1 = GetD(cache, x, y + 1, z, p);
-            if ((d0 >= iso) != (d1 >= iso))
-            {
-                int v0 = V(x - 1, y, z - 1), v1 = V(x, y, z - 1), v2 = V(x, y, z), v3 = V(x - 1, y, z);
-                if (v0 >= 0 && v1 >= 0 && v2 >= 0 && v3 >= 0)
-                    if (d0 < d1) AddQuad(tris, v0, v1, v2, v3); else AddQuad(tris, v0, v3, v2, v1);
-            }
-        }
-        if (z < size)
-        {
-            float d1 = GetD(cache, x, y, z + 1, p);
-            if ((d0 >= iso) != (d1 >= iso))
-            {
-                int v0 = V(x - 1, y - 1, z), v1 = V(x, y - 1, z), v2 = V(x, y, z), v3 = V(x - 1, y, z);
-                if (v0 >= 0 && v1 >= 0 && v2 >= 0 && v3 >= 0)
-                    if (d0 > d1) AddQuad(tris, v0, v1, v2, v3); else AddQuad(tris, v0, v3, v2, v1);
-            }
-        }
-    }
-
-    private void AddQuad(List<int> tris, int v0, int v1, int v2, int v3)
-    {
-        tris.Add(v0); tris.Add(v1); tris.Add(v2); tris.Add(v0); tris.Add(v2); tris.Add(v3);
+        // padding de 1 en cada eje
+        return c[(x + 1) + p * ((y + 1) + p * (z + 1))];
     }
 }

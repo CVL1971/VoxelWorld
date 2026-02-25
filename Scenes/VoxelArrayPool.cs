@@ -1,53 +1,44 @@
 using System.Collections.Generic;
+using System.Collections.Concurrent;
 using UnityEngine;
 
 public static class VoxelArrayPool
 {
+    
     // El "Libro de Cuentas" único
-    private static readonly Dictionary<int, Stack<VoxelData[]>> _pools = new Dictionary<int, Stack<VoxelData[]>>();
+    private static readonly ConcurrentStack<(float[], float[], float[])> mPool =
+         new ConcurrentStack<(float[], float[], float[])>();
 
-    // El "Pomo de la puerta". Es static para que sea la misma llave para todos los cores.
-    private static readonly object mLock = new object();
+    static int mLod0Length;
+    static int mLod1Length;
+    static int mLod2Length;
 
-    public static VoxelData[] Get(int pSideSize)
+    static VoxelArrayPool()
     {
-        // Calculamos el volumen total para usarlo como clave única
-        int vTotalSize = pSideSize * pSideSize * pSideSize;
-
-        // Intentamos entrar al almacén
-        lock (mLock)
-        {
-            // A partir de aquí, solo UN hilo puede estar ejecutando este código
-            if (!_pools.ContainsKey(vTotalSize))
-            {
-                _pools[vTotalSize] = new Stack<VoxelData[]>();
-            }
-
-            if (_pools[vTotalSize].Count > 0)
-            {
-                return _pools[vTotalSize].Pop();
-            }
-        } // Aquí el hilo sale y suelta la llave automáticamente
-
-        // Si llegamos aquí es porque no había arrays. Creamos uno nuevo.
-        // Se hace fuera del lock para que la creación (lenta) no bloquee a otros hilos.
-        return new VoxelData[vTotalSize];
+        VoxelUtils.EnsureAwake = true;
+        mLod0Length = (int)Mathf.Pow(VoxelUtils.LOD_DATA[0] + 3, 3);
+    mLod1Length = (int)Mathf.Pow(VoxelUtils.LOD_DATA[4] + 3, 3);
+    mLod2Length = (int)Mathf.Pow(VoxelUtils.LOD_DATA[8] + 3, 3);
+   
     }
 
-    public static void Return(VoxelData[] pArray)
+
+    public static (float[], float[], float[]) Get()
     {
-        if (pArray == null) return;
+        (float[], float[], float[]) vLodSamples;
 
-        int vTotalSize = pArray.Length;
-
-        lock (mLock)
+        if (!mPool.TryPop(out vLodSamples))
         {
-            if (!_pools.ContainsKey(vTotalSize))
-            {
-                _pools[vTotalSize] = new Stack<VoxelData[]>();
-            }
-
-            _pools[vTotalSize].Push(pArray);
+            return (new float[mLod0Length], new float[mLod1Length], new float[mLod2Length]);
         }
+
+        else return vLodSamples;
+     
+    }
+
+    public static void Return(float[] pLod0, float[] pLod1, float[] pLod2)
+    {
+        mPool.Push( (pLod0,pLod1,pLod2));
+
     }
 }

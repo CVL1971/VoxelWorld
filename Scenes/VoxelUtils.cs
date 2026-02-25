@@ -4,6 +4,7 @@ using System.Collections.Generic;
 public static class VoxelUtils
 {
     public const int UNIVERSAL_CHUNK_SIZE = 32;
+    public static bool EnsureAwake = true;
 
 
     /// <summary>
@@ -457,7 +458,7 @@ public static class VoxelUtils
     // LOD 0: <200k (~447u), LOD 1: <450k (~670u), LOD 2: 450k+ (alcanzable al alejarse)
     public static readonly int[] LOD_DATA =
     {
-        32, 1, 200000,   0,
+        32, 1, 200000,  0,
         16, 2, 450000,  1,
         8,  4, 1000000, 2
     };

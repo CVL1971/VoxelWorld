@@ -84,8 +84,8 @@ public class IntraLODCrackDiagnostic : MonoBehaviour
     public void LogPerChunkSummary()
     {
         World w = FindObjectOfType<World>();
-        if (w == null) { Debug.LogError("No World in scene."); return; }
+        if (w == null) { /*Debug.LogError("No World in scene.");*/ return; }
         Grid g = (Grid)w.GetType().GetField("mGrid", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(w);
-        if (g == null || g.mChunks == null) { Debug.LogError("No Grid/chunks."); return; }
+        if (g == null || g.mChunks == null) { /*Debug.LogError("No Grid/chunks.");*/ return; }
     }
 }

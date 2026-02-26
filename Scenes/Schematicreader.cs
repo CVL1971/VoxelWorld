@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using UnityEngine;
 using System.IO;
 using fNbt;
@@ -98,8 +98,8 @@ public static class SchematicReader
             }
         }
 
-        if (airId == -1)
-            Debug.LogWarning("Air not found in palette; assuming no air.");
+        //if (airId == -1)
+        //    Debug.LogWarning("Air not found in palette; assuming no air.");
 
         int expected = width * height * length;
         if (data.Length < expected)

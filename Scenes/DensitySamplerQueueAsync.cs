@@ -7,10 +7,12 @@ using UnityEngine;
 public struct DensitySamplerJob
 {
     public Chunk mChunk;
-  
+    public int mGenerationIdAtEnqueue;
+
     public DensitySamplerJob(Chunk pChunk)
     {
         mChunk = pChunk;
+        mGenerationIdAtEnqueue = pChunk.mGenerationId;
     }
 }
 
@@ -20,7 +22,7 @@ public class DensitySamplerQueueAsync
   
     public ConcurrentQueue<DensitySamplerJob> mQueue = new();
     public ConcurrentDictionary<Chunk, byte> mInWait = new();
-    public ConcurrentQueue<Chunk> DensitySamplerResult = new();
+    public ConcurrentQueue<(Chunk chunk, int generationId)> DensitySamplerResult = new();
 
     // ---- CONFIGURACIÓN ----
     private readonly SemaphoreSlim mSlots;
@@ -41,6 +43,22 @@ public class DensitySamplerQueueAsync
             mQueue.Enqueue(new DensitySamplerJob(pChunk));
             StartWorker();
         }
+    }
+
+    /// <summary>
+    /// Fuerza re-encolado aunque el chunk esté en mInWait (p. ej. tras ReassignChunk por streaming).
+    /// Evita la franja sin geometría cuando se recicla una capa antes de que termine el sampleo anterior.
+    /// </summary>
+    public void ForceEnqueue(Chunk pChunk)
+    {
+        if (pChunk == null) return;
+
+        mInWait.TryRemove(pChunk, out _);
+        if (mInWait.TryAdd(pChunk, 0))
+        {
+            mQueue.Enqueue(new DensitySamplerJob(pChunk));
+        }
+        StartWorker();
     }
 
     // ---- WORKER LOOP ----
@@ -72,12 +90,14 @@ public class DensitySamplerQueueAsync
             // 3. EJECUCIÓN: Ya tenemos el tipo real, procedemos.
             Chunk vChunk = vJob.mChunk;
             SDFGenerator.Sample(vChunk);
-            DensitySamplerResult.Enqueue(vChunk);
+            // No encolar si el chunk fue reciclado durante el sampleo
+            if (vChunk.mGenerationId == vJob.mGenerationIdAtEnqueue)
+                DensitySamplerResult.Enqueue((vChunk, vJob.mGenerationIdAtEnqueue));
            
         }
         catch (Exception ex)
         {
-            UnityEngine.Debug.LogError("Fallo en el Muestreador (Thread): " + ex.Message);
+            //UnityEngine.Debug.LogError("Fallo en el Muestreador (Thread): " + ex.Message);
         }
         finally
         {

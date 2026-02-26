@@ -3,12 +3,12 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
-using UnityEditor;
 using UnityEngine;
 using UnityEngine.Rendering;
 
 public class World : MonoBehaviour
 {
+    private static int sSamplerDiscardCount = 0;
 
     int mChunkSize;
 
@@ -64,7 +64,7 @@ public class World : MonoBehaviour
        
 
         mChunkSize = VoxelUtils.UNIVERSAL_CHUNK_SIZE;
-        mGridInChunks = new Vector3Int(64, 4, 64);
+        mGridInChunks = new Vector3Int(63,7,63);
         mGridInUnits = mGridInChunks * mChunkSize;
         mGrid = new Grid(mGridInChunks, mChunkSize, mCamera.transform.position);
 
@@ -138,21 +138,13 @@ public class World : MonoBehaviour
 
     void Update()
     {
-        Vector3Int newChunk;
-
-        if (mGrid.TryGetNewPlayerChunk(mCamera.transform.position, out newChunk))
-        {
-            UnityEngine.Debug.Log("Player entered new chunk: " + newChunk);
-
-            mGrid.UpdateStreamingX(newChunk, mDensitySampler);
-        }
-
-      
-        
-
         // 0. Actualizar posición de cámara (Vigilante la usa para detectar LOD)
-        //if (mVigilante != null && mCamera != null)
-        //    mVigilante.vCurrentCamPos = mCamera.transform.position;
+        if (mVigilante != null && mCamera != null)
+            mVigilante.vCurrentCamPos = mCamera.transform.position;
+
+        // 0.5. Streaming en eje X
+        if (mGrid.TryGetNewPlayerChunk(mCamera.transform.position, out Vector3Int newChunk))
+            mGrid.UpdateStreamingX(newChunk, mDensitySampler);
 
         // 1. PRIMERO: Procesar cambios de LOD pendientes (Redim + Enqueue)
         //    Con 3 caches por chunk no hay resample, solo cambio de mSize y mallado
@@ -161,13 +153,19 @@ public class World : MonoBehaviour
 
         while (mDensitySampler.DensitySamplerResult.TryDequeue(out var r))
         {
-            mGrid.MarkSurface(r);
-            mRenderQueueAsync.Enqueue(r, mMeshGenerator);
+            if (r.chunk.mGenerationId != r.generationId)
+            {
+                if (++sSamplerDiscardCount <= 30)
+
+                continue;
+            }
+            mGrid.MarkSurface(r.chunk);
+            mRenderQueueAsync.Enqueue(r.chunk, mMeshGenerator);
         }
 
         // 2. Aplicar todos los resultados de mallado disponibles este frame
         while (mRenderQueueAsync.mResultsLOD.TryDequeue(out var r))
-            mRenderQueueAsync.Apply(r.Key, r.Value);
+            mRenderQueueAsync.Apply(r.chunk, r.mesh, r.generationId);
     }
 
     void OnDisable()

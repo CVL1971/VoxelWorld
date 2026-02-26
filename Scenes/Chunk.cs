@@ -184,6 +184,20 @@ public sealed class Chunk
         mBool2 = false;
     }
 
+    /// <summary>
+    /// Limpia la malla visual. Necesario al reciclar: evita mostrar geometría de la posición anterior.
+    /// </summary>
+    public void ClearMesh()
+    {
+        if (mViewGO == null) return;
+        MeshFilter mf = mViewGO.GetComponent<MeshFilter>();
+        if (mf != null && mf.sharedMesh != null)
+        {
+            Object.Destroy(mf.sharedMesh);
+            mf.sharedMesh = null;
+        }
+    }
+
     public void OnDestroy()
     {
         // Liberamos los arrays para el GC

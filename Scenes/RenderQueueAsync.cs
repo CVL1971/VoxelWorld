@@ -22,23 +22,48 @@ public class RenderQueueAsync
 
     public ConcurrentQueue<RenderJob> mQueue = new();
     public ConcurrentDictionary<Chunk, byte> mInWait = new();
-    public ConcurrentQueue<KeyValuePair<Chunk, MeshData>> mResultsLOD = new();
+    public ConcurrentQueue<(Chunk chunk, MeshData mesh, int generationId)> mResultsLOD = new();
 
     // ---- CONFIGURACIÓN ----
     private readonly SemaphoreSlim mSlots;
     private int mWorkerRunning = 0;
-
     public RenderQueueAsync(Grid pGrid, int maxParallel = 10)
     {
         mGrid = pGrid;
         mSlots = new SemaphoreSlim(maxParallel);
     }
 
+    private static int sTryAddRejectCount = 0;
+    private static int sExecuteDiscardCount = 0;
+    private static int sApplyDiscardCount = 0;
+
     // ---- ENQUEUE ----
     public void Enqueue(Chunk pChunk, MeshGenerator pGenerator)
     {
         if (pChunk == null || pGenerator == null) return;
 
+        if (mInWait.TryAdd(pChunk, 0))
+        {
+            mQueue.Enqueue(new RenderJob(pChunk, pGenerator));
+            StartWorker();
+        }
+        else
+        {
+            if (++sTryAddRejectCount <= 30)
+                Debug.LogWarning($"[RenderQueue] TryAdd RECHAZADO #{sTryAddRejectCount} | Slot={pChunk.mCoord} Global={pChunk.mGlobalCoord} GenId={pChunk.mGenerationId}");
+        }
+    }
+
+    /// <summary>
+    /// Fuerza re-encolado aunque el chunk esté en mInWait. Usado por streaming (ReassignChunk)
+    /// para evitar la franja sin geometría cuando se recicla un chunk antes de que termine
+    /// el mallado anterior (TryAdd rechazaba silenciosamente).
+    /// </summary>
+    public void ForceEnqueue(Chunk pChunk, MeshGenerator pGenerator)
+    {
+        if (pChunk == null || pGenerator == null) return;
+
+        mInWait.TryRemove(pChunk, out _);
         if (mInWait.TryAdd(pChunk, 0))
         {
             mQueue.Enqueue(new RenderJob(pChunk, pGenerator));
@@ -93,6 +118,8 @@ public class RenderQueueAsync
         //if (vChunk.mTargetSize > 0)
         //    vChunk.Redim(vChunk.mTargetSize);
 
+        int genIdAtStart = vChunk.mGenerationId;
+
         // Generar malla
         MeshData vData = vRequest.mMeshGenerator.Generate(
             vChunk,
@@ -100,15 +127,26 @@ public class RenderQueueAsync
             mGrid.mSizeInChunks
         );
 
-
-        if (vData != null)
-            mResultsLOD.Enqueue(new KeyValuePair<Chunk, MeshData>(vChunk, vData));
+        if (vData != null && vChunk.mGenerationId == genIdAtStart)
+            mResultsLOD.Enqueue((vChunk, vData, genIdAtStart));
+        else if (vData != null && vChunk.mGenerationId != genIdAtStart)
+        {
+            if (++sExecuteDiscardCount <= 30)
+                Debug.LogWarning($"[RenderQueue.Execute] DESCARTADO genId | Slot={vChunk.mCoord} Global={vChunk.mGlobalCoord} actual={vChunk.mGenerationId} esperado={genIdAtStart}");
+        }
     }
 
     // Lógica de aplicación original íntegra
-    public void Apply(Chunk pChunk, MeshData pData)
+    public void Apply(Chunk pChunk, MeshData pData, int expectedGenerationId)
     {
         if (pChunk.mViewGO == null) return;
+        if (pChunk.mGenerationId != expectedGenerationId)
+        {
+            if (++sApplyDiscardCount <= 30)
+                Debug.LogWarning($"[RenderQueue.Apply] DESCARTADO genId | Slot={pChunk.mCoord} Global={pChunk.mGlobalCoord} actual={pChunk.mGenerationId} esperado={expectedGenerationId}");
+            mGrid.SetProcessing(pChunk.mIndex, false);
+            return;
+        }
 
         Mesh vMesh = new Mesh();
         vMesh.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
@@ -207,9 +245,9 @@ public class RenderQueueAsync
         }
         int totalT = pData?.triangles?.Count ?? 0;
         _colliderSkipLogCount++;
-        if (_colliderSkipLogCount <= COLLIDER_SKIP_LOG_CAP)
-            Debug.LogWarning($"[ColliderSkip #{_colliderSkipLogCount}] chunk={pChunk.mCoord} mSize={pChunk.mSize} mBool1={pChunk.mBool1} mBool2={pChunk.mBool2} | vertices={totalV} distinct={distinctV} triangles={totalT} | collider requiere >=3 distintos.");
-        else if (_colliderSkipLogCount == COLLIDER_SKIP_LOG_CAP + 1)
-            Debug.LogWarning($"[ColliderSkip] Más skips (total>{COLLIDER_SKIP_LOG_CAP}). Dejar de loguear hasta reinicio.");
+        //if (_colliderSkipLogCount <= COLLIDER_SKIP_LOG_CAP)
+        //    Debug.LogWarning($"[ColliderSkip #{_colliderSkipLogCount}] chunk={pChunk.mCoord} mSize={pChunk.mSize} mBool1={pChunk.mBool1} mBool2={pChunk.mBool2} | vertices={totalV} distinct={distinctV} triangles={totalT} | collider requiere >=3 distintos.");
+        //else if (_colliderSkipLogCount == COLLIDER_SKIP_LOG_CAP + 1)
+        //    Debug.LogWarning($"[ColliderSkip] Más skips (total>{COLLIDER_SKIP_LOG_CAP}). Dejar de loguear hasta reinicio.");
     }
 }

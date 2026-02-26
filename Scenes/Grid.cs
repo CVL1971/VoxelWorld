@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 using System.Collections.Generic;
 
 public class Grid
@@ -15,6 +15,7 @@ public class Grid
     private Vector3Int mHalfSize;      // mitad del volumen local
     private Vector3Int mActiveMin;
     private Vector3Int mActiveMax;
+    private int mXOffset;             // offset circular en X: physicalX = (logicalX + mXOffset) % size
 
     // MÁSCARAS DE BITS (Estructura de 16 bits)
 
@@ -49,6 +50,7 @@ public class Grid
    );
         mActiveMin = mCenterChunk - mHalfSize;
         mActiveMax = mCenterChunk + mHalfSize;
+        mXOffset = 0;
 
         int minX = mCenterChunk.x - mSizeInChunks.x / 2;
         int minY = mCenterChunk.y - mSizeInChunks.y / 2;
@@ -58,10 +60,10 @@ public class Grid
         int maxY = minY + mSizeInChunks.y - 1;
         int maxZ = minZ + mSizeInChunks.z - 1;
 
-        Debug.Log($"Dominio X: {minX} → {maxX}");
-        Debug.Log($"Dominio Y: {minY} → {maxY}");
-        Debug.Log($"Dominio Z: {minZ} → {maxZ}");
-        Debug.Log($"PlayerChunk: {mCenterChunk}");
+        //Debug.Log($"Dominio X: {minX} → {maxX}");
+        //Debug.Log($"Dominio Y: {minY} → {maxY}");
+        //Debug.Log($"Dominio Z: {minZ} → {maxZ}");
+        //Debug.Log($"PlayerChunk: {mCenterChunk}");
 
         int chunkCount =
            mSizeInChunks.x *
@@ -103,47 +105,51 @@ public class Grid
         if (deltaX == 0)
             return;
 
-        Vector3Int oldCenter = mCenterChunk;
         mCenterChunk = newPlayerChunk;
 
         Vector3Int newMin = mCenterChunk - mHalfSize;
         Vector3Int newMax = mCenterChunk + mHalfSize;
 
+        int sx = mSizeInChunks.x;
         if (deltaX > 0)
         {
-            int outgoingX = mActiveMin.x;
-            int incomingX = newMax.x;
-
-            RecycleLayerX(outgoingX, incomingX, samplerQueue);
+            for (int i = 0; i < deltaX; i++)
+            {
+                int incomingX = mActiveMax.x + 1;
+                RecycleLayerX(mXOffset, incomingX, samplerQueue);
+                mXOffset = (mXOffset + 1) % sx;
+                mActiveMin = new Vector3Int(mActiveMin.x + 1, mActiveMin.y, mActiveMin.z);
+                mActiveMax = new Vector3Int(mActiveMax.x + 1, mActiveMax.y, mActiveMax.z);
+            }
         }
         else
         {
-            int outgoingX = mActiveMax.x;
-            int incomingX = newMin.x;
-
-            RecycleLayerX(outgoingX, incomingX, samplerQueue);
+            int absDelta = -deltaX;
+            for (int i = 0; i < absDelta; i++)
+            {
+                mXOffset = (mXOffset - 1 + sx) % sx;
+                int incomingX = mActiveMin.x - 1;
+                RecycleLayerX(mXOffset, incomingX, samplerQueue);
+                mActiveMin = new Vector3Int(mActiveMin.x - 1, mActiveMin.y, mActiveMin.z);
+                mActiveMax = new Vector3Int(mActiveMax.x - 1, mActiveMax.y, mActiveMax.z);
+            }
         }
 
         mActiveMin = newMin;
         mActiveMax = newMax;
     }
 
-    private void RecycleLayerX(int outgoingX, int incomingX, DensitySamplerQueueAsync samplerQueue)
+    /// <summary>
+    /// Recicla la columna física en X. O(Y*Z). Buffer circular: physicalX = (logicalX + mXOffset) % size.
+    /// </summary>
+    private void RecycleLayerX(int physicalColumnX, int incomingX, DensitySamplerQueueAsync samplerQueue)
     {
-        for (int i = 0; i < mChunks.Length; i++)
+        for (int z = 0; z < mSizeInChunks.z; z++)
         {
-            Chunk chunk = mChunks[i];
-
-            if (chunk.mGlobalCoord.x == outgoingX)
+            for (int y = 0; y < mSizeInChunks.y; y++)
             {
-                Vector3Int oldCoord = chunk.mGlobalCoord;
-
-                Vector3Int newCoord = new Vector3Int(
-                    incomingX,
-                    oldCoord.y,
-                    oldCoord.z
-                );
-
+                Chunk chunk = mChunks[ChunkIndex(physicalColumnX, y, z)];
+                Vector3Int newCoord = new Vector3Int(incomingX, chunk.mGlobalCoord.y, chunk.mGlobalCoord.z);
                 ReassignChunk(chunk, newCoord, samplerQueue);
             }
         }
@@ -158,6 +164,7 @@ public class Grid
 
         if (chunk.mViewGO != null)
         {
+            chunk.ClearMesh(); // Evita mostrar geometría vieja en la nueva posición
             chunk.mViewGO.transform.position =
                 (Vector3)(chunk.mGlobalCoord * VoxelUtils.UNIVERSAL_CHUNK_SIZE);
         }
@@ -174,10 +181,10 @@ public class Grid
         // Marcar como procesando
         SetProcessing(index, true);
 
-        // Lanzar nuevo sampleo
-        samplerQueue.Enqueue(chunk);
+        // Lanzar nuevo sampleo (ForceEnqueue evita rechazo si el chunk sigue en mInWait)
+        samplerQueue.ForceEnqueue(chunk);
 
-        Debug.Log(DebugState(chunk));
+        //Debug.Log(DebugState(chunk));
     }
 
     // 1. Declaramos la variable miembro inicializada a zero
@@ -277,6 +284,25 @@ public class Grid
     public int ChunkIndex(int x, int y, int z)
     {
         return x + mSizeInChunks.x * (y + mSizeInChunks.y * z);
+    }
+
+    /// <summary>
+    /// Obtiene el chunk por coordenadas globales. Mapeo circular: physicalX = (logicalX + mXOffset) % size.
+    /// </summary>
+    public Chunk GetChunkByGlobalCoord(int cx, int cy, int cz)
+    {
+        if (cx < mActiveMin.x || cx > mActiveMax.x ||
+            cy < mActiveMin.y || cy > mActiveMax.y ||
+            cz < mActiveMin.z || cz > mActiveMax.z)
+            return null;
+
+        int lx = cx - mActiveMin.x;
+        int ly = cy - mActiveMin.y;
+        int lz = cz - mActiveMin.z;
+        int sx = mSizeInChunks.x;
+        int physicalX = (lx + mXOffset) % sx;
+        if (physicalX < 0) physicalX += sx;
+        return mChunks[ChunkIndex(physicalX, ly, lz)];
     }
 
     public void ApplyToChunks(ChunkAction pMethod)
@@ -408,12 +434,9 @@ public class Grid
                                 int targetCy = vCy + dy;
                                 int targetCz = vCz + dz;
 
-                                // Verificamos si el chunk vecino existe dentro de los límites del mundo
-                                if (!VoxelUtils.IsInBounds(targetCx, targetCy, targetCz, mSizeInChunks))
+                                Chunk vTargetChunk = GetChunkByGlobalCoord(targetCx, targetCy, targetCz);
+                                if (vTargetChunk == null)
                                     continue;
-
-                                int vCIdx = VoxelUtils.GetChunkIndex(targetCx, targetCy, targetCz, mSizeInChunks);
-                                Chunk vTargetChunk = mChunks[vCIdx];
 
                                 // 5. Convertimos la posición global a la local de este chunk específico
                                 int lX = vx - (targetCx * mChunkSize);
@@ -435,7 +458,7 @@ public class Grid
 
                                     // Marcamos el chunk para que el sistema sepa que debe regenerar la malla
                                     vTargetChunk.mIsEdited = true;
-                                    vAffectedChunks.Add(vCIdx);
+                                    vAffectedChunks.Add(vTargetChunk.mIndex);
                                 }
                             }
                         }

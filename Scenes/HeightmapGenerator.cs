@@ -75,7 +75,7 @@ public static class HeightmapManager
         }
         catch (System.Exception e)
         {
-            Debug.LogError("Error al guardar EXR: " + e.Message);
+            //Debug.LogError("Error al guardar EXR: " + e.Message);
         }
 
         Object.DestroyImmediate(texture);

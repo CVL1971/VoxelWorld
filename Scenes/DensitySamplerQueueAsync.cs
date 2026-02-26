@@ -73,6 +73,7 @@ public class DensitySamplerQueueAsync
             Chunk vChunk = vJob.mChunk;
             SDFGenerator.Sample(vChunk);
             DensitySamplerResult.Enqueue(vChunk);
+           
         }
         catch (Exception ex)
         {
@@ -91,6 +92,39 @@ public class DensitySamplerQueueAsync
             // Pase lo que pase arriba, devolvemos el permiso.
             mSlots.Release();
         }
+    }
+
+    public static string DebugState(Chunk chunk)
+    {
+        if (chunk == null)
+            return "[ChunkDebug] NULL chunk";
+
+        if (chunk.mGrid == null)
+            return "[ChunkDebug] Grid NULL";
+
+        ushort status = chunk.mGrid.mStatusGrid[chunk.mIndex];
+
+        bool surface = (status & Grid.BIT_SURFACE) != 0;
+        bool processing = (status & Grid.MASK_PROCESSING) != 0;
+        int lodCurrent = (status & Grid.MASK_LOD_CURRENT) >> 2;
+        int lodTarget = (status & Grid.MASK_LOD_TARGET) >> 4;
+
+        return
+            $"[ChunkDebug] " +
+            $"Slot={chunk.mCoord} | " +
+            $"Global={chunk.mGlobalCoord} | " +
+            $"Index={chunk.mIndex} | " +
+            $"GenId={chunk.mGenerationId} | " +
+            $"Size={chunk.mSize} | " +
+            $"Edited={chunk.mIsEdited} | " +
+            $"Bool1={chunk.mBool1} | " +
+            $"Bool2={chunk.mBool2} | " +
+            $"Surface={surface} | " +
+            $"Processing={processing} | " +
+            $"LOD_Current={lodCurrent} | " +
+            $"LOD_Target={lodTarget} | " +
+            $"StatusRaw=0x{status:X4} | " +
+            $"WorldOrigin={chunk.WorldOrigin}";
     }
 
     private async Task ProcessLoop()

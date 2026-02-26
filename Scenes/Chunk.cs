@@ -10,6 +10,8 @@ public sealed class Chunk
     public readonly Grid mGrid;
     private Vector3Int mWorldOrigin;
     public readonly int mIndex;
+    public Vector3Int mGlobalCoord;
+    public int mGenerationId;
 
     /// <summary> Resolución actual del chunk (32, 16 u 8). </summary>
     public int mSize;
@@ -58,16 +60,8 @@ public sealed class Chunk
     {
         get
         {
-           
-            mWorldOrigin.x = (mGrid.mXOffset + mCoord.x) * VoxelUtils.UNIVERSAL_CHUNK_SIZE;
-            mWorldOrigin.y = (mGrid.mYOffset + mCoord.y) * VoxelUtils.UNIVERSAL_CHUNK_SIZE;
-            mWorldOrigin.z = (mGrid.mZOffset + mCoord.z) * VoxelUtils.UNIVERSAL_CHUNK_SIZE;
-
-            return mWorldOrigin;
-
-
+            return mGlobalCoord * VoxelUtils.UNIVERSAL_CHUNK_SIZE;
         }
-       
     }
 
 

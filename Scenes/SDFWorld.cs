@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
+using UnityEditor;
 using UnityEngine;
 using UnityEngine.Rendering;
 
@@ -38,6 +39,9 @@ public class World : MonoBehaviour
     private Vigilante mVigilante;
     private DecimationManager mDecimator;
 
+    [Header("Debug: límites de chunks")]
+    [SerializeField] bool mDrawChunkBounds = false;
+
     [Header("Configuración de Carga / LOD")]
     [SerializeField] int mMinQueueToProcess = 1;  // Procesar en cuanto haya al menos 1 chunk (LOD activo)
     [SerializeField] float mMaxWaitTime = 0.4f;   // Si hay cola y no llegamos al mínimo, esperar como mucho esto
@@ -62,7 +66,7 @@ public class World : MonoBehaviour
         mChunkSize = VoxelUtils.UNIVERSAL_CHUNK_SIZE;
         mGridInChunks = new Vector3Int(64, 4, 64);
         mGridInUnits = mGridInChunks * mChunkSize;
-        mGrid = new Grid(mGridInChunks, mChunkSize);
+        mGrid = new Grid(mGridInChunks, mChunkSize, mCamera.transform.position);
 
         //mGrid.ApplyToChunks(SDFGenerator.Sample);
         //SDFGenerator.LoadHeightmapToGrid(mGrid, @"E:\maps\1.png");
@@ -134,9 +138,21 @@ public class World : MonoBehaviour
 
     void Update()
     {
+        Vector3Int newChunk;
+
+        if (mGrid.TryGetNewPlayerChunk(mCamera.transform.position, out newChunk))
+        {
+            UnityEngine.Debug.Log("Player entered new chunk: " + newChunk);
+
+            mGrid.UpdateStreamingX(newChunk, mDensitySampler);
+        }
+
+      
+        
+
         // 0. Actualizar posición de cámara (Vigilante la usa para detectar LOD)
-        if (mVigilante != null && mCamera != null)
-            mVigilante.vCurrentCamPos = mCamera.transform.position;
+        //if (mVigilante != null && mCamera != null)
+        //    mVigilante.vCurrentCamPos = mCamera.transform.position;
 
         // 1. PRIMERO: Procesar cambios de LOD pendientes (Redim + Enqueue)
         //    Con 3 caches por chunk no hay resample, solo cambio de mSize y mallado
@@ -160,6 +176,33 @@ public class World : MonoBehaviour
         {
             mCTS.Cancel(); // Corta el flujo
             mCTS.Dispose(); // Libera el objeto de la memoria
+        }
+    }
+
+    void OnDrawGizmos()
+    {
+        if (!mDrawChunkBounds || mGrid == null || mGrid.mChunks == null) return;
+
+        Gizmos.color = Color.cyan;
+        foreach (Chunk c in mGrid.mChunks)
+        {
+            if (c == null) continue;
+            Vector3 min = (Vector3)c.WorldOrigin;
+            float s = VoxelUtils.UNIVERSAL_CHUNK_SIZE;
+            Vector3 max = min + new Vector3(s, s, s);
+
+            Vector3 p000 = min;
+            Vector3 p100 = new Vector3(max.x, min.y, min.z);
+            Vector3 p010 = new Vector3(min.x, max.y, min.z);
+            Vector3 p110 = new Vector3(max.x, max.y, min.z);
+            Vector3 p001 = new Vector3(min.x, min.y, max.z);
+            Vector3 p101 = new Vector3(max.x, min.y, max.z);
+            Vector3 p011 = new Vector3(min.x, max.y, max.z);
+            Vector3 p111 = max;
+
+            Gizmos.DrawLine(p000, p100); Gizmos.DrawLine(p100, p110); Gizmos.DrawLine(p110, p010); Gizmos.DrawLine(p010, p000);
+            Gizmos.DrawLine(p001, p101); Gizmos.DrawLine(p101, p111); Gizmos.DrawLine(p111, p011); Gizmos.DrawLine(p011, p001);
+            Gizmos.DrawLine(p000, p001); Gizmos.DrawLine(p100, p101); Gizmos.DrawLine(p110, p111); Gizmos.DrawLine(p010, p011);
         }
     }
 

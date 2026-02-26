@@ -121,22 +121,57 @@ public class RenderQueueAsync
         if (vMf.sharedMesh != null) GameObject.Destroy(vMf.sharedMesh);
         vMf.sharedMesh = vMesh;
 
-        MeshCollider vMc = pChunk.mViewGO.GetComponent<MeshCollider>();
-        if (vMc != null)
-        {
-            if (IsValidForCollider(pData))
-                vMc.sharedMesh = vMesh;
-            else
-            {
-                vMc.sharedMesh = null;
-                LogColliderSkip(pChunk, pData);
-            }
-        }
-
+        //MeshCollider vMc = pChunk.mViewGO.GetComponent<MeshCollider>();
+        //if (vMc != null)
+        //{
+        //    if (IsValidForCollider(pData))
+        //        vMc.sharedMesh = vMesh;
+        //    else
+        //    {
+        //        vMc.sharedMesh = null;
+        //        LogColliderSkip(pChunk, pData);
+        //    }
+        //}
+     
         int index = pChunk.mIndex;
         int lodApplied = Grid.ResolutionToLodIndex(pChunk.mSize);
         mGrid.SetLod(index, lodApplied);
         mGrid.SetProcessing(index, false);
+
+        
+    }
+
+    public static string DebugState(Chunk chunk)
+    {
+        if (chunk == null)
+            return "[ChunkDebug] NULL chunk";
+
+        if (chunk.mGrid == null)
+            return "[ChunkDebug] Grid NULL";
+
+        ushort status = chunk.mGrid.mStatusGrid[chunk.mIndex];
+
+        bool surface = (status & Grid.BIT_SURFACE) != 0;
+        bool processing = (status & Grid.MASK_PROCESSING) != 0;
+        int lodCurrent = (status & Grid.MASK_LOD_CURRENT) >> 2;
+        int lodTarget = (status & Grid.MASK_LOD_TARGET) >> 4;
+
+        return
+            $"[ChunkDebug] " +
+            $"Slot={chunk.mCoord} | " +
+            $"Global={chunk.mGlobalCoord} | " +
+            $"Index={chunk.mIndex} | " +
+            $"GenId={chunk.mGenerationId} | " +
+            $"Size={chunk.mSize} | " +
+            $"Edited={chunk.mIsEdited} | " +
+            $"Bool1={chunk.mBool1} | " +
+            $"Bool2={chunk.mBool2} | " +
+            $"Surface={surface} | " +
+            $"Processing={processing} | " +
+            $"LOD_Current={lodCurrent} | " +
+            $"LOD_Target={lodTarget} | " +
+            $"StatusRaw=0x{status:X4} | " +
+            $"WorldOrigin={chunk.WorldOrigin}";
     }
 
     /// <summary>

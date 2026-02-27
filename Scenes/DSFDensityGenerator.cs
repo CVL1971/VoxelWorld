@@ -1,5 +1,4 @@
-
-
+using System.Diagnostics;
 using UnityEngine;
 using System.IO;
 
@@ -12,6 +11,7 @@ public static class SDFGenerator
     // El valor donde el Surface Nets coloca la malla.
     // En SDF puro suele ser 0, pero mantengo 0.5f por compatibilidad con tu sistema.
     private const float ISO_SURFACE = 0.5f;
+    private static Stopwatch watch = new Stopwatch();
 
     /// <summary>
     /// NUEVA LÓGICA: Devuelve la distancia vertical a la superficie + el offset de isosuperficie.
@@ -65,20 +65,59 @@ public static class SDFGenerator
 
     /// <summary>
     /// Rellena el Chunk usando el nuevo gradiente de distancia.
+    /// Optimizado con detección de límites de altura para descartar aire/sólido rápidamente.
     /// </summary>
     public static void Sample(Chunk pChunk)
     {
+        //watch.Restart();
         int savedSize = pChunk.mSize;
         pChunk.ResetGenericBools();
 
+        Vector3Int origin = pChunk.WorldOrigin;
+        float chunkSize = (float)VoxelUtils.UNIVERSAL_CHUNK_SIZE;
+
+        // --- OPTIMIZACIÓN DE LÍMITES (EARLY EXIT) ---
+        // Comprobamos la altura en 5 puntos (4 esquinas + centro) para estimar el rango
+        float h00 = GetGeneratedHeight(origin.x, origin.z);
+        float h10 = GetGeneratedHeight(origin.x + chunkSize, origin.z);
+        float h01 = GetGeneratedHeight(origin.x, origin.z + chunkSize);
+        float h11 = GetGeneratedHeight(origin.x + chunkSize, origin.z + chunkSize);
+        float hMid = GetGeneratedHeight(origin.x + chunkSize * 0.5f, origin.z + chunkSize * 0.5f);
+
+        float minH = Mathf.Min(h00, Mathf.Min(h10, Mathf.Min(h01, Mathf.Min(h11, hMid))));
+        float maxH = Mathf.Max(h00, Mathf.Max(h10, Mathf.Max(h01, Mathf.Max(h11, hMid))));
+
+        // Margen de seguridad para variaciones locales del ruido entre muestras
+        const float margin = 8.0f;
+
+        // ¿Es aire puro? (El suelo más alto está por debajo de la base del chunk)
+        if (origin.y > maxH + margin)
+        {
+            SetChunkConstant(pChunk, 0.0f); // Densidad aire
+            pChunk.mBool2 = true; // Tiene aire
+            pChunk.mBool1 = false; // No tiene sólido
+            FinalizeSample(savedSize);
+            return;
+        }
+
+        // ¿Es sólido puro? (El valle más profundo está por encima del tope del chunk)
+        if (origin.y + chunkSize < minH - margin)
+        {
+            SetChunkConstant(pChunk, 1.0f); // Densidad sólido
+            pChunk.mBool1 = true; // Tiene sólido
+            pChunk.mBool2 = false; // No tiene aire
+            FinalizeSample(savedSize);
+            return;
+        }
+
+        // --- PROCESO NORMAL (CHUNK DE SUPERFICIE) ---
         int[] resolutions = { (int)VoxelUtils.LOD_DATA[0], (int)VoxelUtils.LOD_DATA[4], (int)VoxelUtils.LOD_DATA[8] };
 
         foreach (int N in resolutions)
         {
             pChunk.mSize = N;
             int paddedRes = N + 3;
-            Vector3Int origin = pChunk.WorldOrigin;
-            float vStep = (float)VoxelUtils.UNIVERSAL_CHUNK_SIZE / (float)N;
+            float vStep = chunkSize / (float)N;
 
             for (int z = 0; z < paddedRes; z++)
             {
@@ -92,23 +131,43 @@ public static class SDFGenerator
                     {
                         float worldY = origin.y + ((y - 1) * vStep);
 
-                        // CLAVE: Aquí quitamos el Clamping y el multiplicador SMOOTHNESS.
-                        // Dejamos que el valor fluya libremente (ej: 0.1, 0.45, 0.55, 1.2...)
+                        // Mantenemos tu lógica de gradiente libre
                         float density = (height - worldY) + ISO_SURFACE;
 
                         pChunk.SetDensity(x - 1, y - 1, z - 1, density);
 
-                        // Lógica de visibilidad (solo para optimizar si el chunk está vacío)
                         if (x > 0 && x <= N && y > 0 && y <= N && z > 0 && z <= N)
                         {
-                            if (density >= ISO_SURFACE) pChunk.mBool1 = true; // Tiene sólido
-                            else pChunk.mBool2 = true; // Tiene aire
+                            if (density >= ISO_SURFACE) pChunk.mBool1 = true;
+                            else pChunk.mBool2 = true;
                         }
                     }
                 }
             }
         }
-        pChunk.mSize = savedSize;
+        FinalizeSample(savedSize);
+    }
+
+    // Método auxiliar interno para rellenar caches rápidamente en early exits
+    private static void SetChunkConstant(Chunk pChunk, float val)
+    {
+        int[] resolutions = { (int)VoxelUtils.LOD_DATA[0], (int)VoxelUtils.LOD_DATA[4], (int)VoxelUtils.LOD_DATA[8] };
+        foreach (int N in resolutions)
+        {
+            pChunk.mSize = N;
+            int paddedRes = N + 3;
+            for (int z = 0; z < paddedRes; z++)
+                for (int x = 0; x < paddedRes; x++)
+                    for (int y = 0; y < paddedRes; y++)
+                        pChunk.SetDensity(x - 1, y - 1, z - 1, val);
+        }
+    }
+
+    private static void FinalizeSample(int savedSize)
+    {
+        //watch.Stop();
+        //double ms = watch.Elapsed.TotalMilliseconds;
+        //UnityEngine.Debug.Log($"[Cronómetro] Tiempo transcurrido: {ms:F4} ms");
     }
 
     public static float GetGeneratedHeight(float x, float z)
@@ -149,18 +208,14 @@ public static class SDFGenerator
     public static void LoadHeightmapToGrid(Grid pGrid, string filePath)
     {
         // ... (Carga de textura igual que antes) ...
-        // Al asignar la densidad, usamos la misma lógica de rampa suave:
-        // float h = tex.GetPixelBilinear(u, v).r * maxHeight;
-        // float density = (h - worldY) + ISO_SURFACE;
-        // chunk.SetDensity(vx, vy, vz, density);
     }
 
     public static Vector3 CalculateNormal(Vector3 worldPos)
     {
-        // Al usar distancias reales, el gradiente es mucho más estable.
         const float h = 0.1f;
         float dX = Sample(new Vector3(worldPos.x + h, worldPos.y, worldPos.z)) - Sample(new Vector3(worldPos.x - h, worldPos.y, worldPos.z));
-        float dY = Sample(new Vector3(worldPos.x, worldPos.y, worldPos.z + h)) - Sample(new Vector3(worldPos.x, worldPos.y, worldPos.z - h));
+        // CORRECCIÓN: Usar worldPos.y para dY
+        float dY = Sample(new Vector3(worldPos.x, worldPos.y + h, worldPos.z)) - Sample(new Vector3(worldPos.x, worldPos.y - h, worldPos.z));
         float dZ = Sample(new Vector3(worldPos.x, worldPos.y, worldPos.z + h)) - Sample(new Vector3(worldPos.x, worldPos.y, worldPos.z - h));
 
         return new Vector3(dX, dY, dZ).normalized;
@@ -402,59 +457,4 @@ public static class SDFGenerator
 
 //        Object.DestroyImmediate(tex);
 //    }
-
-
-//    //public static void ResampleData(Chunk pChunk)
-//    //{
-//    //    int res = pChunk.mSize; // Resolución actual (8, 16 o 32)
-//    //    Vector3Int origin = pChunk.mWorldOrigin;
-
-//    //    // Calculamos el paso (step) necesario para cubrir 32 unidades físicas
-//    //    // Si res es 32, step es 1.0. Si res es 8, step es 4.0.
-//    //    float step = (float)VoxelUtils.UNIVERSAL_CHUNK_SIZE / res;
-
-//    //    for (int z = 0; z < res; z++)
-//    //    {
-//    //        for (int y = 0; y < res; y++)
-//    //        {
-//    //            for (int x = 0; x < res; x++)
-//    //            {
-//    //                // Calculamos la posición real en el mundo usando el paso
-//    //                Vector3 worldPos = new Vector3(
-//    //                    origin.x + (x * step),
-//    //                    origin.y + (y * step),
-//    //                    origin.z + (z * step)
-//    //                );
-
-//    //                // Usamos tu generador original para obtener la densidad
-//    //                float density = SDFGenerator.Sample(worldPos);
-
-//    //                // Inyectamos los datos en el nuevo array del chunk
-//    //                pChunk.SetDensity(x, y, z, density);
-//    //                pChunk.SetSolid(x, y, z, (byte)(density >= 0.5f ? 1 : 0));
-//    //            }
-//    //        }
-//    //    }
-//    //}
-
-
-//    //private static float GetGeneratedHeight(float x, float z)
-//    //{
-//    //    // 1. Ruido Base (Grandes masas de tierra)
-//    //    float baseLand = Mathf.PerlinNoise(x * BASE_SCALE, z * BASE_SCALE);
-
-//    //    // 2. Ridged Noise (Para crestas de montañas afiladas)
-//    //    // Invertimos el ruido para que los "valles" del Perlin sean "picos"
-//    //    float mountainNoise = Mathf.PerlinNoise(x * MOUNTAIN_SCALE, z * MOUNTAIN_SCALE);
-//    //    float ridges = 1.0f - Mathf.Abs(mountainNoise * 2.0f - 1.0f);
-//    //    ridges = ridges * ridges; // Exponencial para afilar aún más las crestas
-
-//    //    // 3. Ruido de detalle (Pequeñas irregularidades)
-//    //    float detail = (Mathf.PerlinNoise(x * DETAIL_SCALE, z * DETAIL_SCALE) * 2.0f - 1.0f) * 2.0f;
-
-//    //    // Combinación: Las montañas solo aparecen donde el baseLand es alto
-//    //    float height = (baseLand * 30.0f) + (ridges * baseLand * 40.0f) + detail;
-
-//    //    return height + 15.0f; // Offset de elevación mínima
-//    //}
 //}

@@ -13,7 +13,7 @@
 - **Chunks** de tamaño fijo (32 unidades físicas) con resolución variable (LOD: 32, 16 u 8 voxels por eje).
 - **Surface Nets** (y variante QEF) para generar mallas suaves a partir de densidades.
 - **Cola de renderizado monohilo** con procesamiento gradual opcional por frame.
-- **Sistema LOD** con “Vigilante” (detecta distancia a cámara) y “DecimationManager” (encola chunks para remesh).
+- **Sistema LOD** con “Vigilante” (detecta distancia a cámara) y “ChunkPipeline” (encola chunks para remesh).
 - **Edición en tiempo real** con pincel (VoxelBrush) que modifica densidades y vuelve a generar mallas de chunks afectados.
 
 El código está en `Assets/Scenes/` (scripts de juego y librería fNbt para NBT). La arquitectura es coherente; hay algunos bugs conocidos y una herramienta de diagnóstico desactualizada que ya está corregida.
@@ -31,7 +31,7 @@ Assets/
 │   ├── DSFDensityGenerator.cs # SDFGenerator – ruido y Sample(Chunk)
 │   ├── RenderQueueMonohilo.cs # Cola de generación de mallas + Apply
 │   ├── Vigilante.cs           # Task async – distancia cámara → mTargetSize
-│   ├── DecimationManager.cs   # Dispatch a cola + debug visual por LOD
+│   ├── ChunkPipeline.cs   # Dispatch a cola + debug visual por LOD
 │   ├── VoxelUtils.cs          # Constantes, GetDensityGlobal, LOD_DATA, índices
 │   ├── VoxelData.cs / VoxelArrayPool.cs
 │   ├── VoxelBrush.cs          # Edición (excavar/rellenar)
@@ -56,7 +56,7 @@ Assets/
 1. **Inicio (`World.Start`)**  
    - Crea `Grid` (ej. 8×2×8 chunks), `RenderQueueMonohilo`, `Grid.ReadFromSDFGenerator()` (llena todos los chunks con `SDFGenerator.Sample`).  
    - `BuildSurfaceNets()`: crea GameObjects `Chunk_<coord>`, encola todos los chunks, `ProcessSequential()`, luego aplica resultados en `Update`.  
-   - Inicializa `DecimationManager` y `Vigilante`; arranca `Task.Run(() => mVigilante.Run(cts.Token))`.
+   - Inicializa `ChunkPipeline` y `Vigilante`; arranca `Task.Run(() => mVigilante.Run(cts.Token))`.
 
 2. **Cada frame (`World.Update`)**  
    - Actualiza `mVigilante.vCurrentCamPos` con la cámara.  
@@ -64,9 +64,9 @@ Assets/
    - Si hay suficientes ítems en cola o ha pasado `mMaxWaitTime`, mueve la cola a `mProcessingBuffer` y en los siguientes frames procesa gradualmente (resample LOD si `mTargetSize > 0`, luego `Generate`, encola en `mResults`), con límite de tiempo por frame.
 
 3. **Vigilante (async)**  
-   - Cada 500 ms recorre todos los chunks, calcula distancia al centro del chunk, `GetInfoDist` → resolución deseada. Si la resolución actual (derivada de `mVoxels.Length`) difiere y `mTargetSize == 0`, asigna `mTargetSize` y llama `DecimationManager.DispatchToRender(chunk)`.
+   - Cada 500 ms recorre todos los chunks, calcula distancia al centro del chunk, `GetInfoDist` → resolución deseada. Si la resolución actual (derivada de `mVoxels.Length`) difiere y `mTargetSize == 0`, asigna `mTargetSize` y llama `ChunkPipeline.DispatchToRender(chunk)`.
 
-4. **DecimationManager**  
+4. **ChunkPipeline**  
    - Pinta debug por LOD (blanco/azul/rojo) y hace `mRenderQueue.Enqueue(chunk, mGenerator)`.
 
 5. **RenderQueueMonohilo**  

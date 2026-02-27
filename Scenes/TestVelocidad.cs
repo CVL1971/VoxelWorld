@@ -65,7 +65,7 @@ public class VigilanteSimulator : MonoBehaviour
             if (vCurrentRes != vTargetRes)
             {
                 changeRequests++;
-                // mDecimator.RequestLODChange(vChunk, vTargetRes);
+                // ChunkPipeline.RequestLODChange(vChunk, vTargetRes);
             }
         }
 

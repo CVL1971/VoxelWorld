@@ -8,8 +8,6 @@ using UnityEngine.Rendering;
 
 public class World : MonoBehaviour
 {
-    private static int sSamplerDiscardCount = 0;
-
     int mChunkSize;
 
     [Header("Rendering")]
@@ -27,8 +25,7 @@ public class World : MonoBehaviour
     Vector3Int mGridInChunks;
     Mesh mWorldMesh;
 
-    RenderQueueAsync mRenderQueueAsync;
-    DensitySamplerQueueAsync mDensitySampler;
+    ChunkPipeline mChunkPipeline;
 
     MeshGenerator mMeshGenerator;
     SurfaceNetsGeneratorQEF3caches mSurfaceNet = new SurfaceNetsGeneratorQEF3caches();
@@ -37,7 +34,6 @@ public class World : MonoBehaviour
 
   
     private Vigilante mVigilante;
-    private DecimationManager mDecimator;
 
     [Header("Debug: límites de chunks")]
     [SerializeField] bool mDrawChunkBounds = false;
@@ -64,25 +60,21 @@ public class World : MonoBehaviour
        
 
         mChunkSize = VoxelUtils.UNIVERSAL_CHUNK_SIZE;
-        mGridInChunks = new Vector3Int(63,7,63);
+        mGridInChunks = new Vector3Int(91, 7, 91);
         mGridInUnits = mGridInChunks * mChunkSize;
         mGrid = new Grid(mGridInChunks, mChunkSize, mCamera.transform.position);
 
         //mGrid.ApplyToChunks(SDFGenerator.Sample);
         //SDFGenerator.LoadHeightmapToGrid(mGrid, @"E:\maps\1.png");
         //mGrid.ApplyToChunks(mGrid.MarkSurface); 
-        mRenderQueueAsync = new RenderQueueAsync(mGrid);
-        mDensitySampler = new DensitySamplerQueueAsync();
-        // 2. Inicializar el Decimator (Cerebro)
-        mDecimator = new DecimationManager();
-        mDecimator.Setup(mRenderQueueAsync, mDensitySampler, mSurfaceNetQEF);
+        mChunkPipeline = new ChunkPipeline(mGrid, 8);
+        mChunkPipeline.Setup(mSurfaceNetQEF);
         InitWorld();
        
         #region Vigilante Lod Code
        
-        // 3. Inicializar el Vigilante (Ojos)
         mVigilante = new Vigilante();
-        mVigilante.Setup(mGrid, mDecimator); // O el transform del Player
+        mVigilante.Setup(mGrid, mChunkPipeline);
         mVigilante.vCurrentCamPos = mCamera.transform.position;
 
         //Task.Run(delegate { return mVigilante.Run(); });
@@ -106,10 +98,12 @@ public class World : MonoBehaviour
             mGrid.SetProcessing(i, true);
             Chunk vChunk = mGrid.mChunks[i];
             vChunk.PrepareView(mGrid.mWorldRoot.transform, mSurfaceMaterial);
-            mDensitySampler.Enqueue(vChunk);
+            mChunkPipeline.EnqueueDensity(vChunk);
         }
 
         //mRenderQueueMulti.ProcessParallel(-1);
+
+
     }
 
     public void ExecuteModification(Vector3 pHitPoint, Vector3 pHitNormal, byte pNewValue)
@@ -125,11 +119,7 @@ public class World : MonoBehaviour
         {
             Chunk vChunk = mGrid.mChunks[vIndex];
 
-            //Aquí centralizamos la orden de renderizado
-            if (mRenderQueueAsync != null)
-            {
-                mRenderQueueAsync.Enqueue(vChunk, mSurfaceNet);
-            }
+            mChunkPipeline.EnqueueRender(vChunk, mSurfaceNet);
         }
 
         //mRenderQueue.ProcessParallel();
@@ -138,34 +128,13 @@ public class World : MonoBehaviour
 
     void Update()
     {
-        // 0. Actualizar posición de cámara (Vigilante la usa para detectar LOD)
         if (mVigilante != null && mCamera != null)
             mVigilante.vCurrentCamPos = mCamera.transform.position;
 
-        // 0.5. Streaming en eje X
-        if (mGrid.TryGetNewPlayerChunk(mCamera.transform.position, out Vector3Int newChunk))
-            mGrid.UpdateStreamingX(newChunk, mDensitySampler);
+        if (mCamera != null)
+            mChunkPipeline.Update(mCamera.transform.position);
 
-        // 1. PRIMERO: Procesar cambios de LOD pendientes (Redim + Enqueue)
-        //    Con 3 caches por chunk no hay resample, solo cambio de mSize y mallado
-        if (mDecimator != null)
-            mDecimator.ProcessPendingResamples(20);
-
-        while (mDensitySampler.DensitySamplerResult.TryDequeue(out var r))
-        {
-            if (r.chunk.mGenerationId != r.generationId)
-            {
-                if (++sSamplerDiscardCount <= 30)
-
-                continue;
-            }
-            mGrid.MarkSurface(r.chunk);
-            mRenderQueueAsync.Enqueue(r.chunk, mMeshGenerator);
-        }
-
-        // 2. Aplicar todos los resultados de mallado disponibles este frame
-        while (mRenderQueueAsync.mResultsLOD.TryDequeue(out var r))
-            mRenderQueueAsync.Apply(r.chunk, r.mesh, r.generationId);
+        //mChunkPipeline.Update(Vector3.zero);
     }
 
     void OnDisable()

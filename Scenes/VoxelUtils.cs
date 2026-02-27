@@ -458,9 +458,9 @@ public static class VoxelUtils
     // LOD 0: <200k (~447u), LOD 1: <450k (~670u), LOD 2: 450k+ (alcanzable al alejarse)
     public static readonly int[] LOD_DATA =
     {
-        32, 1, 200000,  0,
-        16, 2, 450000,  1,
-        8,  4, 1000000, 2
+        32, 1, 50000,  0,
+        16, 2, 200000,  1,
+        8,  4, 500000, 2
     };
 
     public static int GetInfoDist(float pDistSq)

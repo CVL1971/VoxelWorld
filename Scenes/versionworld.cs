@@ -6,7 +6,7 @@
 //    de 10 a 1. Esto permite que el sistema responda instantáneamente a cambios de LOD individuales.Modificado: 
 //    mMaxWaitTime se ha reducido de 1.0f a 0.2f.Modificado: mChunksPerFrame se ha aumentado de 1 a 2.2. Nuevas 
 //    Funcionalidades y Flujo de DatosAñadido (Gestión de Resample): En el método Update(), se ha añadido la llamada
-//    mDecimator.ProcessPendingResamples(mChunksPerFrame);. Esto es crítico para asegurar que los datos de los voxels
+//    mChunkPipeline.ProcessPendingResamples(mChunksPerFrame);. Esto es crítico para asegurar que los datos de los voxels
 //    estén listos antes de generar la malla y evitar grietas entre chunks.Añadido (Priorización de LOD): Se ha añadido
 //    una nueva lógica para vaciar la cola mResultsLOD antes que la cola de resultados normales (mResults). Esto garantiza
 //    que la geometría lejana (LOD) se actualice con prioridad sobre otras tareas.3. Modificaciones en el Método

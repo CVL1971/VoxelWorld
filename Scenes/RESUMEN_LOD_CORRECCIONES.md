@@ -98,7 +98,7 @@ int paddedRes = N + 3;
 
 **Problema:** El Vigilante detectaba cambios de LOD (logs `[LOD] Vigilante detecta`) pero no se aplicaban cambios visuales. `RequestLODChange` salía sin encolar nada.
 
-**Causa:** `SetDensity` asignaba `mIsEdited = true` en cada llamada. `SDFGenerator.Sample` usa `SetDensity` para rellenar las densidades iniciales, por lo que todos los chunks quedaban con `mIsEdited = true`. La condición `if (pChunk.mIsEdited) return;` en `DecimationManager.RequestLODChange` rechazaba todos los chunks.
+**Causa:** `SetDensity` asignaba `mIsEdited = true` en cada llamada. `SDFGenerator.Sample` usa `SetDensity` para rellenar las densidades iniciales, por lo que todos los chunks quedaban con `mIsEdited = true`. La condición `if (pChunk.mIsEdited) return;` en `ChunkPipeline.RequestLODChange` rechazaba todos los chunks.
 
 **Solución:** Marcar `mIsEdited` solo en edición manual (ModifyWorld, ApplyBrush), no cuando el generador SDF escribe datos.
 
@@ -235,12 +235,12 @@ public static void Sample(Chunk pChunk)
 
 ## 3. Flujo temporal síncrono (revertido)
 
-**Scripts:** `DecimationManager.cs`, `RenderStackAsync.cs`  
+**Scripts:** `ChunkPipeline.cs`, `RenderStackAsync.cs`  
 **Procedimientos:** `ProcessPendingResamples`, `ForceEnqueue` / `ProcessSync` (eliminado)
 
 **Contexto:** Para descartar problemas de concurrencia, se usó temporalmente un flujo síncrono (`ProcessSync`: Generate + Apply en el hilo principal). Tras confirmar que el LOD funcionaba, se revirtió al flujo asíncrono.
 
-**Script: DecimationManager.cs – Procedimiento: ProcessPendingResamples**
+**Script: ChunkPipeline.cs – Procedimiento: ProcessPendingResamples**
 
 **Código temporal (síncrono, ya revertido):**
 ```csharp
@@ -265,7 +265,7 @@ mRenderQueue.ForceEnqueue(t.chunk, mGenerator);
 | **Chunk.cs** | `SetDensity`, `ApplyBrush`, `DeclareSampleArray` |
 | **DSFDensityGenerator.cs** | `Sample(Chunk pChunk)` |
 | **SurfeceNetsGeneratorQEF3caches.cs** | `Generate`, uso de `p = size + 3` |
-| **DecimationManager.cs** | `ProcessPendingResamples` (ForceEnqueue) |
+| **ChunkPipeline.cs** | `ProcessPendingResamples` (ForceEnqueue) |
 | **RenderStackAsync.cs** | Eliminado `ProcessSync` |
 
 ---
@@ -273,7 +273,7 @@ mRenderQueue.ForceEnqueue(t.chunk, mGenerator);
 ## Flujo LOD actual (asíncrono)
 
 1. **Vigilante** (Task): detecta distancia, llama a `RequestLODChange`.
-2. **DecimationManager.RequestLODChange**: añade chunk a `mPendingResamples` (si `!mIsEdited`).
+2. **ChunkPipeline.RequestLODChange**: añade chunk a `mPendingResamples` (si `!mIsEdited`).
 3. **SDFWorld.Update** → **ProcessPendingResamples**: `Redim(targetRes)`, `ForceEnqueue`.
 4. **RenderStackAsync.ProcessLoop**: `Execute` → `Generate` en workers.
 5. **SDFWorld.Update** → `while (mResultsLOD.TryDequeue)` → `Apply` en main thread.

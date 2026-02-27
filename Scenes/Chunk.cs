@@ -12,6 +12,7 @@ public sealed class Chunk
     public readonly int mIndex;
     public Vector3Int mGlobalCoord;
     public int mGenerationId;
+    internal int mPending; // contador privado del sistema
 
     /// <summary> Resolución actual del chunk (32, 16 u 8). </summary>
     public int mSize;

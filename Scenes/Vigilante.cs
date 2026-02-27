@@ -5,13 +5,13 @@ using UnityEngine;
 public class Vigilante
 {
     private Grid mGrid;
-    private DecimationManager mDecimator;
+    private ChunkPipeline mPipeline;
     public Vector3 vCurrentCamPos;
 
-    public void Setup(Grid pGrid, DecimationManager pDecimator)
+    public void Setup(Grid pGrid, ChunkPipeline pPipeline)
     {
         mGrid = pGrid;
-        mDecimator = pDecimator;
+        mPipeline = pPipeline;
     }
 
     public async Task Run(CancellationToken pToken)
@@ -54,7 +54,7 @@ public class Vigilante
 
                     int vTargetRes = (int)VoxelUtils.LOD_DATA[vInfoBlock];
 
-                    mDecimator.RequestLODChange(mGrid.mChunks[i], vTargetRes);
+                    mPipeline.RequestLODChange(mGrid.mChunks[i], vTargetRes);
                 }
             }
 

@@ -16,21 +16,24 @@ public struct RenderJob
     }
 }
 
-public class RenderQueueAsync
+
+internal class RenderQueueAsync
 {
     private readonly Grid mGrid;
+    private readonly Action<Chunk> mOnDiscardReenqueueToDensity;
 
     public ConcurrentQueue<RenderJob> mQueue = new();
     public ConcurrentDictionary<Chunk, byte> mInWait = new();
     public ConcurrentQueue<(Chunk chunk, MeshData mesh, int generationId)> mResultsLOD = new();
 
-    // ---- CONFIGURACI”N ----
+    // ---- CONFIGURACIùN ----
     private readonly SemaphoreSlim mSlots;
     private int mWorkerRunning = 0;
-    public RenderQueueAsync(Grid pGrid, int maxParallel = 10)
+    public RenderQueueAsync(Grid pGrid, int maxParallel = 10, Action<Chunk> onDiscardReenqueueToDensity = null)
     {
         mGrid = pGrid;
         mSlots = new SemaphoreSlim(maxParallel);
+        mOnDiscardReenqueueToDensity = onDiscardReenqueueToDensity;
     }
 
     private static int sTryAddRejectCount = 0;
@@ -55,8 +58,8 @@ public class RenderQueueAsync
     }
 
     /// <summary>
-    /// Fuerza re-encolado aunque el chunk estÈ en mInWait. Usado por streaming (ReassignChunk)
-    /// para evitar la franja sin geometrÌa cuando se recicla un chunk antes de que termine
+    /// Fuerza re-encolado aunque el chunk estù en mInWait. Usado por streaming (ReassignChunk)
+    /// para evitar la franja sin geometrùa cuando se recicla un chunk antes de que termine
     /// el mallado anterior (TryAdd rechazaba silenciosamente).
     /// </summary>
     public void ForceEnqueue(Chunk pChunk, MeshGenerator pGenerator)
@@ -88,7 +91,7 @@ public class RenderQueueAsync
             {
                 mWorkerRunning = 0;
 
-                // si alguien encolÛ mientras salÌamos
+                // si alguien encolù mientras salùamos
                 if (!mQueue.IsEmpty && Interlocked.CompareExchange(ref mWorkerRunning, 1, 0) == 0)
                     continue;
 
@@ -109,7 +112,7 @@ public class RenderQueueAsync
         }
     }
 
-    // ---- EJECUCI”N REAL ----
+    // ---- EJECUCIùN REAL ----
     private void Execute(RenderJob vRequest)
     {
         Chunk vChunk = vRequest.mChunk;
@@ -133,10 +136,11 @@ public class RenderQueueAsync
         {
             if (++sExecuteDiscardCount <= 30)
                 Debug.LogWarning($"[RenderQueue.Execute] DESCARTADO genId | Slot={vChunk.mCoord} Global={vChunk.mGlobalCoord} actual={vChunk.mGenerationId} esperado={genIdAtStart}");
+            mOnDiscardReenqueueToDensity?.Invoke(vChunk);
         }
     }
 
-    // LÛgica de aplicaciÛn original Ìntegra
+    // Lùgica de aplicaciùn original ùntegra
     public void Apply(Chunk pChunk, MeshData pData, int expectedGenerationId)
     {
         if (pChunk.mViewGO == null) return;
@@ -214,7 +218,7 @@ public class RenderQueueAsync
 
     /// <summary>
     /// Unity exige "at least three distinct vertices" para MeshCollider.
-    /// Comprueba vÈrtices totales y que haya al menos 3 posiciones distintas.
+    /// Comprueba vùrtices totales y que haya al menos 3 posiciones distintas.
     /// </summary>
     private static bool IsValidForCollider(MeshData pData)
     {
@@ -230,7 +234,7 @@ public class RenderQueueAsync
     private const int COLLIDER_SKIP_LOG_CAP = 50;
 
     /// <summary>
-    /// DiagnÛstico: por quÈ se omitiÛ el collider (para dar certeza, no teorÌa).
+    /// Diagnùstico: por quù se omitiù el collider (para dar certeza, no teorùa).
     /// </summary>
     private static void LogColliderSkip(Chunk pChunk, MeshData pData)
     {
@@ -248,6 +252,6 @@ public class RenderQueueAsync
         //if (_colliderSkipLogCount <= COLLIDER_SKIP_LOG_CAP)
         //    Debug.LogWarning($"[ColliderSkip #{_colliderSkipLogCount}] chunk={pChunk.mCoord} mSize={pChunk.mSize} mBool1={pChunk.mBool1} mBool2={pChunk.mBool2} | vertices={totalV} distinct={distinctV} triangles={totalT} | collider requiere >=3 distintos.");
         //else if (_colliderSkipLogCount == COLLIDER_SKIP_LOG_CAP + 1)
-        //    Debug.LogWarning($"[ColliderSkip] M·s skips (total>{COLLIDER_SKIP_LOG_CAP}). Dejar de loguear hasta reinicio.");
+        //    Debug.LogWarning($"[ColliderSkip] Mùs skips (total>{COLLIDER_SKIP_LOG_CAP}). Dejar de loguear hasta reinicio.");
     }
 }

@@ -20,53 +20,25 @@ public struct RenderJob
 internal class RenderQueueAsync
 {
     private readonly Grid mGrid;
-    private readonly Action<Chunk> mOnDiscardReenqueueToDensity;
 
     public ConcurrentQueue<RenderJob> mQueue = new();
     public ConcurrentDictionary<Chunk, byte> mInWait = new();
-    public ConcurrentQueue<(Chunk chunk, MeshData mesh, int generationId)> mResultsLOD = new();
+    public ConcurrentQueue<(Chunk chunk, MeshData mesh)> mResultsLOD = new();
 
     // ---- CONFIGURACIùN ----
     private readonly SemaphoreSlim mSlots;
     private int mWorkerRunning = 0;
-    public RenderQueueAsync(Grid pGrid, int maxParallel = 10, Action<Chunk> onDiscardReenqueueToDensity = null)
+    public RenderQueueAsync(Grid pGrid, int maxParallel = 10)
     {
         mGrid = pGrid;
         mSlots = new SemaphoreSlim(maxParallel);
-        mOnDiscardReenqueueToDensity = onDiscardReenqueueToDensity;
     }
-
-    private static int sTryAddRejectCount = 0;
-    private static int sExecuteDiscardCount = 0;
-    private static int sApplyDiscardCount = 0;
 
     // ---- ENQUEUE ----
     public void Enqueue(Chunk pChunk, MeshGenerator pGenerator)
     {
         if (pChunk == null || pGenerator == null) return;
 
-        if (mInWait.TryAdd(pChunk, 0))
-        {
-            mQueue.Enqueue(new RenderJob(pChunk, pGenerator));
-            StartWorker();
-        }
-        else
-        {
-            if (++sTryAddRejectCount <= 30)
-                Debug.LogWarning($"[RenderQueue] TryAdd RECHAZADO #{sTryAddRejectCount} | Slot={pChunk.mCoord} Global={pChunk.mGlobalCoord} GenId={pChunk.mGenerationId}");
-        }
-    }
-
-    /// <summary>
-    /// Fuerza re-encolado aunque el chunk estù en mInWait. Usado por streaming (ReassignChunk)
-    /// para evitar la franja sin geometrùa cuando se recicla un chunk antes de que termine
-    /// el mallado anterior (TryAdd rechazaba silenciosamente).
-    /// </summary>
-    public void ForceEnqueue(Chunk pChunk, MeshGenerator pGenerator)
-    {
-        if (pChunk == null || pGenerator == null) return;
-
-        mInWait.TryRemove(pChunk, out _);
         if (mInWait.TryAdd(pChunk, 0))
         {
             mQueue.Enqueue(new RenderJob(pChunk, pGenerator));
@@ -112,7 +84,7 @@ internal class RenderQueueAsync
         }
     }
 
-    // ---- EJECUCIùN REAL ----
+    // ---- EJECUCIOùN REAL ----
     private void Execute(RenderJob vRequest)
     {
         Chunk vChunk = vRequest.mChunk;
@@ -121,47 +93,37 @@ internal class RenderQueueAsync
         //if (vChunk.mTargetSize > 0)
         //    vChunk.Redim(vChunk.mTargetSize);
 
-        int genIdAtStart = vChunk.mGenerationId;
-
-        // Generar malla
         MeshData vData = vRequest.mMeshGenerator.Generate(
             vChunk,
             mGrid.mChunks,
             mGrid.mSizeInChunks
         );
 
-        if (vData != null && vChunk.mGenerationId == genIdAtStart)
-            mResultsLOD.Enqueue((vChunk, vData, genIdAtStart));
-        else if (vData != null && vChunk.mGenerationId != genIdAtStart)
-        {
-            if (++sExecuteDiscardCount <= 30)
-                Debug.LogWarning($"[RenderQueue.Execute] DESCARTADO genId | Slot={vChunk.mCoord} Global={vChunk.mGlobalCoord} actual={vChunk.mGenerationId} esperado={genIdAtStart}");
-            mOnDiscardReenqueueToDensity?.Invoke(vChunk);
-        }
+        if (vData != null)
+            mResultsLOD.Enqueue((vChunk, vData));
     }
 
-    // Lùgica de aplicaciùn original ùntegra
-    public void Apply(Chunk pChunk, MeshData pData, int expectedGenerationId)
+    public void Apply(Chunk pChunk, MeshData pData)
     {
-        if (pChunk.mViewGO == null) return;
-        if (pChunk.mGenerationId != expectedGenerationId)
+        MeshFilter vMf = pChunk.mViewGO.GetComponent<MeshFilter>();
+        Mesh vMesh = vMf.sharedMesh;
+        if (vMesh == null)
         {
-            if (++sApplyDiscardCount <= 30)
-                Debug.LogWarning($"[RenderQueue.Apply] DESCARTADO genId | Slot={pChunk.mCoord} Global={pChunk.mGlobalCoord} actual={pChunk.mGenerationId} esperado={expectedGenerationId}");
-            mGrid.SetProcessing(pChunk.mIndex, false);
-            return;
+            vMesh = new Mesh();
+            vMesh.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
         }
-
-        Mesh vMesh = new Mesh();
-        vMesh.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
+        else
+        {
+            vMesh.Clear();
+        }
         vMesh.SetVertices(pData.vertices);
         vMesh.SetNormals(pData.normals);
         vMesh.SetTriangles(pData.triangles, 0);
         vMesh.RecalculateBounds();
-
-        MeshFilter vMf = pChunk.mViewGO.GetComponent<MeshFilter>();
-        if (vMf.sharedMesh != null) GameObject.Destroy(vMf.sharedMesh);
         vMf.sharedMesh = vMesh;
+        vMesh.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
+        pChunk.mViewGO.GetComponent<MeshRenderer>().enabled = true;
+
 
         //MeshCollider vMc = pChunk.mViewGO.GetComponent<MeshCollider>();
         //if (vMc != null)
@@ -174,7 +136,7 @@ internal class RenderQueueAsync
         //        LogColliderSkip(pChunk, pData);
         //    }
         //}
-     
+
         int index = pChunk.mIndex;
         int lodApplied = Grid.ResolutionToLodIndex(pChunk.mSize);
         mGrid.SetLod(index, lodApplied);
@@ -203,7 +165,6 @@ internal class RenderQueueAsync
             $"Slot={chunk.mCoord} | " +
             $"Global={chunk.mGlobalCoord} | " +
             $"Index={chunk.mIndex} | " +
-            $"GenId={chunk.mGenerationId} | " +
             $"Size={chunk.mSize} | " +
             $"Edited={chunk.mIsEdited} | " +
             $"Bool1={chunk.mBool1} | " +

@@ -11,8 +11,6 @@ public class ChunkPipeline
     // ==========================================
     // ESTADO Y DEPENDENCIAS
     // ==========================================
-    private static int sSamplerDiscardCount = 0;
-
     private readonly Grid mGrid;
     private readonly RenderQueueAsync mRenderQueueAsync;
     private readonly DensitySamplerQueueAsync mDensitySampler;
@@ -31,7 +29,7 @@ public class ChunkPipeline
     {
         mGrid = pGrid;
         mGrid.SetPipeline(this);
-        mRenderQueueAsync = new RenderQueueAsync(pGrid, maxParallelRender, ForceEnqueueDensity);
+        mRenderQueueAsync = new RenderQueueAsync(pGrid, maxParallelRender);
         mDensitySampler = new DensitySamplerQueueAsync(maxParallelDensity);
     }
 
@@ -48,14 +46,9 @@ public class ChunkPipeline
         mDensitySampler.Enqueue(pChunk);
     }
 
-    public void ForceEnqueueDensity(Chunk pChunk)
+    public bool TryDequeueDensityResult(out Chunk pChunk)
     {
-        mDensitySampler.ForceEnqueue(pChunk);
-    }
-
-    public bool TryDequeueDensityResult(out (Chunk chunk, int generationId) pResult)
-    {
-        return mDensitySampler.DensitySamplerResult.TryDequeue(out pResult);
+        return mDensitySampler.DensitySamplerResult.TryDequeue(out pChunk);
     }
 
     // ==========================================
@@ -66,19 +59,14 @@ public class ChunkPipeline
         mRenderQueueAsync.Enqueue(pChunk, pGenerator);
     }
 
-    public void ForceEnqueueRender(Chunk pChunk, MeshGenerator pGenerator)
-    {
-        mRenderQueueAsync.ForceEnqueue(pChunk, pGenerator);
-    }
-
-    public bool TryDequeueRenderResult(out (Chunk chunk, MeshData mesh, int generationId) pResult)
+    public bool TryDequeueRenderResult(out (Chunk chunk, MeshData mesh) pResult)
     {
         return mRenderQueueAsync.mResultsLOD.TryDequeue(out pResult);
     }
 
-    public void ApplyRenderResult(Chunk pChunk, MeshData pData, int pExpectedGenerationId)
+    public void ApplyRenderResult(Chunk pChunk, MeshData pData)
     {
-        mRenderQueueAsync.Apply(pChunk, pData, pExpectedGenerationId);
+        mRenderQueueAsync.Apply(pChunk, pData);
     }
 
     // ==========================================
@@ -140,27 +128,15 @@ public class ChunkPipeline
 
         ProcessPendingResamples(20);
 
-        while (TryDequeueDensityResult(out var r))
+        while (TryDequeueDensityResult(out Chunk densityChunk))
         {
-            if (r.chunk.mGenerationId != r.generationId)
-            {
-                if (++sSamplerDiscardCount <= 30)
-                    UnityEngine.Debug.LogWarning($"[Sampler] DESCARTADO genId | Slot={r.chunk.mCoord} Global={r.chunk.mGlobalCoord} chunkGen={r.chunk.mGenerationId} resultGen={r.generationId}");
-                ForceEnqueueDensity(r.chunk);
-                continue;
-            }
-            mGrid.MarkSurface(r.chunk);
-            EnqueueRender(r.chunk, mMeshGenerator);
+            mGrid.MarkSurface(densityChunk);
+            EnqueueRender(densityChunk, mMeshGenerator);
         }
 
         while (TryDequeueRenderResult(out var r))
         {
-            if (r.chunk.mGenerationId != r.generationId)
-            {
-                ForceEnqueueDensity(r.chunk);
-                continue;
-            }
-            ApplyRenderResult(r.chunk, r.mesh, r.generationId);
+            ApplyRenderResult(r.chunk, r.mesh);
         }
     }
 }

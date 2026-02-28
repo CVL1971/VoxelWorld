@@ -1,8 +1,13 @@
-
+using System;
+using System.Threading;
 using UnityEngine;
 
 public sealed class Chunk
 {
+    /// <summary> Conteo de instancias vivas (para auditoría de memoria). </summary>
+    public static int s_AliveCount => Volatile.Read(ref s_AliveCountValue);
+    private static int s_AliveCountValue;
+
     // =========================================================
     // IDENTIDAD Y ESTADO
     // =========================================================
@@ -11,8 +16,8 @@ public sealed class Chunk
     private Vector3Int mWorldOrigin;
     public readonly int mIndex;
     public Vector3Int mGlobalCoord;
-    public int mGenerationId;
     internal int mPending; // contador privado del sistema
+    public event Action<Chunk> OnIdle;
 
     /// <summary> Resolución actual del chunk (32, 16 u 8). </summary>
     public int mSize;
@@ -53,9 +58,14 @@ public sealed class Chunk
         // para que los chunks no se muevan al cambiar de LOD.
         mWorldOrigin = Vector3Int.zero;
 
-
+        Interlocked.Increment(ref s_AliveCountValue);
         DeclareSampleArray();
     }
+
+
+    public void AddPending() { Interlocked.Increment(ref mPending); }
+    public void ReleasePending() { int remaining = Interlocked.Decrement(ref mPending); if (remaining == 0) OnIdle?.Invoke(this); }
+
 
     public Vector3Int WorldOrigin
     {
@@ -163,13 +173,10 @@ public sealed class Chunk
     // =========================================================
     public void PrepareView(Transform worldRoot, Material surfaceMaterial)
     {
-        if (mViewGO == null)
-        {
-            mViewGO = new GameObject("Chunk_" + mCoord, typeof(MeshFilter), typeof(MeshRenderer), typeof(MeshCollider));
-            mViewGO.transform.parent = worldRoot;
-            mViewGO.transform.position = (Vector3)WorldOrigin;
-            mViewGO.GetComponent<MeshRenderer>().sharedMaterial = surfaceMaterial;
-        }
+        mViewGO = new GameObject("Chunk_" + mCoord, typeof(MeshFilter), typeof(MeshRenderer), typeof(MeshCollider));
+        mViewGO.transform.parent = worldRoot;
+        mViewGO.transform.position = (Vector3)WorldOrigin;
+        mViewGO.GetComponent<MeshRenderer>().sharedMaterial = surfaceMaterial;
     }
 
     public void Redim(int pNewSize)
@@ -194,25 +201,34 @@ public sealed class Chunk
         MeshFilter mf = mViewGO.GetComponent<MeshFilter>();
         if (mf != null && mf.sharedMesh != null)
         {
-            Object.Destroy(mf.sharedMesh);
+            UnityEngine.Object.Destroy(mf.sharedMesh);
             mf.sharedMesh = null;
         }
     }
 
+    /// <summary>
+    /// Libera arrays de densidad y destruye mViewGO. Llamar explícitamente en shutdown.
+    /// </summary>
+    public void Release()
+    {
+        //OnDestroy();
+    }
+
     public void OnDestroy()
     {
+        Interlocked.Decrement(ref s_AliveCountValue);
         // Liberamos los arrays para el GC
         mSample0 = mSample1 = mSample2 = null;
 
-        if (mViewGO != null)
-        {
-            MeshFilter filter = mViewGO.GetComponent<MeshFilter>();
-            if (filter != null && filter.sharedMesh != null)
-                Object.Destroy(filter.sharedMesh);
+        //if (mViewGO != null)
+        //{
+        //    MeshFilter filter = mViewGO.GetComponent<MeshFilter>();
+        //    if (filter != null && filter.sharedMesh != null)
+        //        Object.Destroy(filter.sharedMesh);
 
-            Object.Destroy(mViewGO);
-            mViewGO = null;
-        }
+        //    Object.Destroy(mViewGO);
+        //    mViewGO = null;
+        //}
     }
 
     // =========================================================

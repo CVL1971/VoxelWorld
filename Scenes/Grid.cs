@@ -257,11 +257,11 @@ public class Grid
     private void ReassignChunk(Chunk chunk, Vector3Int newGlobalCoord)
     {
         chunk.mGlobalCoord = newGlobalCoord;
-        chunk.mGenerationId++;
 
         if (chunk.mViewGO != null)
         {
-            chunk.ClearMesh();
+            //chunk.mViewGO.GetComponent<MeshFilter>().sharedMesh.Clear();
+            chunk.mViewGO.GetComponent<MeshRenderer>().enabled=false;
             chunk.mViewGO.transform.position =
                 (Vector3)(chunk.mGlobalCoord * VoxelUtils.UNIVERSAL_CHUNK_SIZE);
         }
@@ -272,9 +272,7 @@ public class Grid
         int index = chunk.mIndex;
         mStatusGrid[index] = 0;
         SetProcessing(index, true);
-
-        if (mPipeline != null)
-            mPipeline.ForceEnqueueDensity(chunk);
+        mPipeline.EnqueueDensity(chunk);
     }
 
     private void ResetLayerX(int physicalColumnX)
@@ -319,7 +317,6 @@ public class Grid
         ResetStatusFlags(index);
         chunk.mIsEdited = false;
         chunk.ResetGenericBools();
-        chunk.mGenerationId++;
     }
 
     private Vector3 mInternalWorldOrigin = Vector3.zero;
@@ -349,7 +346,6 @@ public class Grid
             $"Slot={chunk.mCoord} | " +
             $"Global={chunk.mGlobalCoord} | " +
             $"Index={chunk.mIndex} | " +
-            $"GenId={chunk.mGenerationId} | " +
             $"Size={chunk.mSize} | " +
             $"Edited={chunk.mIsEdited} | " +
             $"Bool1={chunk.mBool1} | " +
@@ -398,13 +394,13 @@ public class Grid
             mWorldRoot = new GameObject("WorldRoot");
             mWorldRoot.transform.position = Vector3.zero;
         }
-        else
-        {
-            foreach (Transform child in mWorldRoot.transform)
-            {
-                UnityEngine.Object.Destroy(child.gameObject);
-            }
-        }
+        //else
+        //{
+        //    foreach (Transform child in mWorldRoot.transform)
+        //    {
+        //        UnityEngine.Object.Destroy(child.gameObject);
+        //    }
+        //}
     }
 
     public HashSet<int> ModifyWorld(VoxelBrush pBrush)

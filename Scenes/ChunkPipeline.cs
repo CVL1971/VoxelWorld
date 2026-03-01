@@ -12,8 +12,8 @@ public class ChunkPipeline
     // ESTADO Y DEPENDENCIAS
     // ==========================================
     private readonly Grid mGrid;
-    private readonly RenderQueueAsync mRenderQueueAsync;
-    private readonly DensitySamplerQueueAsync mDensitySampler;
+    private readonly RenderQueueAsyncEpoch mRenderQueueAsync;
+    private readonly DensitySamplerQueueEpoch mDensitySampler;
     private MeshGenerator mMeshGenerator;
 
     /// <summary>
@@ -29,8 +29,8 @@ public class ChunkPipeline
     {
         mGrid = pGrid;
         mGrid.SetPipeline(this);
-        mRenderQueueAsync = new RenderQueueAsync(pGrid, maxParallelRender);
-        mDensitySampler = new DensitySamplerQueueAsync(maxParallelDensity);
+        mRenderQueueAsync = new RenderQueueAsyncEpoch(pGrid, maxParallelRender);
+        mDensitySampler = new DensitySamplerQueueEpoch(maxParallelDensity);
     }
 
     public void Setup(MeshGenerator pGenerator)
@@ -46,10 +46,30 @@ public class ChunkPipeline
         mDensitySampler.Enqueue(pChunk);
     }
 
-    public bool TryDequeueDensityResult(out Chunk pChunk)
+    //public bool TryDequeueDensityResult(out Chunk pChunk)
+    //{
+    //    return mDensitySampler.DensitySamplerResult.TryDequeue(out pChunk);
+    //}
+
+    public bool TryDequeueDensityResult(out Chunk pChunk, out bool pStructural)
     {
-        return mDensitySampler.DensitySamplerResult.TryDequeue(out pChunk);
+        if (mDensitySampler.DensitySamplerResult.TryDequeue(out DensitySamplerResultItem result))
+        {
+            pChunk = result.mChunk;
+            pStructural = result.mStructural;
+            return true;
+        }
+
+
+        pChunk = null;
+        pStructural = false;
+        return false;
+
+
     }
+
+
+
 
     // ==========================================
     // GESTIÓN DE MALLADO (RENDER QUEUE)
@@ -57,6 +77,11 @@ public class ChunkPipeline
     public void EnqueueRender(Chunk pChunk, MeshGenerator pGenerator)
     {
         mRenderQueueAsync.Enqueue(pChunk, pGenerator);
+    }
+
+    public void EnqueueRender(Chunk pChunk, MeshGenerator pGenerator, bool pBool)
+    {
+        mRenderQueueAsync.Enqueue(pChunk, pGenerator, pBool);
     }
 
     public bool TryDequeueRenderResult(out (Chunk chunk, MeshData mesh) pResult)
@@ -128,10 +153,10 @@ public class ChunkPipeline
 
         ProcessPendingResamples(20);
 
-        while (TryDequeueDensityResult(out Chunk densityChunk))
+        while (TryDequeueDensityResult(out Chunk densityChunk, out bool pStructural))
         {
             mGrid.MarkSurface(densityChunk);
-            EnqueueRender(densityChunk, mMeshGenerator);
+            EnqueueRender(densityChunk, mMeshGenerator, pStructural);
         }
 
         while (TryDequeueRenderResult(out var r))

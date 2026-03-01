@@ -5,7 +5,7 @@ using UnityEngine;
 public static class VoxelArrayPool
 {
     
-    // El "Libro de Cuentas" único
+    // El "Libro de Cuentas" ï¿½nico
     private static readonly ConcurrentStack<(float[], float[], float[])> mPool =
          new ConcurrentStack<(float[], float[], float[])>();
 

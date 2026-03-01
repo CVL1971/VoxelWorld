@@ -9,7 +9,7 @@ public class RenderQueueAsyncEpoch
     private readonly Grid mGrid;
 
 
-public ConcurrentQueue<RenderJobPlus> mQueue = new();
+    public ConcurrentQueue<RenderJobPlus> mQueue = new();
     public ConcurrentQueue<RenderJobPlus> mStructuralQueue = new();
     public ConcurrentQueue<(Chunk chunk, MeshData mesh)> mResultsLOD = new();
 
@@ -49,8 +49,8 @@ public ConcurrentQueue<RenderJobPlus> mQueue = new();
     // =========================================================
     public void Enqueue(Chunk chunk, MeshGenerator generator, bool vReset)
     {
-        if (chunk == null)
-            return;
+        if (chunk == null) return;
+        if (!vReset) { Enqueue(chunk, generator); return; }
 
         mStructuralQueue.Enqueue(new RenderJobPlus(chunk, generator, true));
 
@@ -183,5 +183,35 @@ public ConcurrentQueue<RenderJobPlus> mQueue = new();
         chunk.ResetGenericBools();
     }
 
+    // =========================================================
+    // APPLY (MAIN THREAD) - aplica malla al chunk
+    // =========================================================
+    public void Apply(Chunk pChunk, MeshData pData)
+    {
+        if (pChunk?.mViewGO == null) return;
 
+        MeshFilter vMf = pChunk.mViewGO.GetComponent<MeshFilter>();
+        Mesh vMesh = vMf.sharedMesh;
+        if (vMesh == null)
+        {
+            vMesh = new Mesh();
+            vMesh.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
+        }
+        else
+        {
+            vMesh.Clear();
+        }
+        vMesh.SetVertices(pData.vertices);
+        vMesh.SetNormals(pData.normals);
+        vMesh.SetTriangles(pData.triangles, 0);
+        vMesh.RecalculateBounds();
+        vMf.sharedMesh = vMesh;
+        vMesh.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
+        pChunk.mViewGO.GetComponent<MeshRenderer>().enabled = true;
+
+        int index = pChunk.mIndex;
+        int lodApplied = Grid.ResolutionToLodIndex(pChunk.mSize);
+        mGrid.SetLod(index, lodApplied);
+        mGrid.SetProcessing(index, false);
+    }
 }

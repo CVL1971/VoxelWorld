@@ -17,14 +17,16 @@ public sealed class Chunk
     public readonly int mIndex;
     public Vector3Int mGlobalCoord;
     internal int mPending; // contador privado del sistema
-    public event Action<Chunk> OnIdle;
 
     /// <summary> Resolución actual del chunk (32, 16 u 8). </summary>
     public int mSize;
     /// <summary> Resolución objetivo para la próxima actualización de LOD. </summary>
 
     public bool mIsEdited = false;
- 
+
+    /// <summary> Evento cuando el chunk queda idle (mPending llega a 0). Usado por RenderQueueAsyncEpoch. </summary>
+    public event Action<Chunk> OnIdle;
+
     // Bools de estado para optimización de visibilidad
     public bool mBool1 = false; // Flag: Contiene geometría sólida
     public bool mBool2 = false; // Flag: Contiene aire/vacío
@@ -61,11 +63,6 @@ public sealed class Chunk
         Interlocked.Increment(ref s_AliveCountValue);
         DeclareSampleArray();
     }
-
-
-    public void AddPending() { Interlocked.Increment(ref mPending); }
-    public void ReleasePending() { int remaining = Interlocked.Decrement(ref mPending); if (remaining == 0) OnIdle?.Invoke(this); }
-
 
     public Vector3Int WorldOrigin
     {
@@ -190,6 +187,19 @@ public sealed class Chunk
     {
         mBool1 = false;
         mBool2 = false;
+    }
+
+    /// <summary> Incrementa el contador de trabajos pendientes. Usado por RenderQueueAsyncEpoch. </summary>
+    public void AddPending()
+    {
+        Interlocked.Increment(ref mPending);
+    }
+
+    /// <summary> Decrementa el contador y dispara OnIdle si llega a 0. Usado por RenderQueueAsyncEpoch. </summary>
+    public void ReleasePending()
+    {
+        if (Interlocked.Decrement(ref mPending) == 0)
+            OnIdle?.Invoke(this);
     }
 
     /// <summary>

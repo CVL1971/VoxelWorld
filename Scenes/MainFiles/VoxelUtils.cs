@@ -144,6 +144,8 @@ public static class VoxelUtils
         return Mathf.Lerp(c0, c1, tz);
     }
 
+
+
     //public static float GetDensityGlobalFinal(Chunk currentChunk, Chunk[] allChunks, Vector3Int worldSize, float x, float y, float z)
     //{
     //    // 1. CONVERSIÓN RÁPIDA A ÍNDICE

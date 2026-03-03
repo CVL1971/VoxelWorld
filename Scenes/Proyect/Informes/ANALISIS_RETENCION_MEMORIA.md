@@ -81,7 +81,7 @@ if (mGrid?.mWorldRoot != null)
 | Clase | Estático | Riesgo |
 |-------|----------|--------|
 | `DensitySamplerQueueAsync` | `CustomSampler s_TaskSampler`, `s_MathSampler` | Bajo (samplers ligeros) |
-| `VoxelArrayPool` | `ConcurrentStack mPool` | Se limpia con `Clear()` ✓ |
+| `ArrayPool` | `ConcurrentStack mPool` | Se limpia con `Clear()` ✓ |
 | `GeneralData` | `mVolumeData`, `mTerrain`, etc. | Si se usan, retienen |
 | `SDFGenerator` | `Stopwatch watch` | Bajo |
 | `RenderQueueAsync` | `sTryAddRejectCount`, etc. | Solo ints, sin impacto |
@@ -169,7 +169,7 @@ void OnDisable()
     mChunkPipeline = null;
     mGrid = null;
     mVigilante = null;
-    VoxelArrayPool.Clear();
+    ArrayPool.Clear();
 
     // 5. Dar tiempo al GC
     System.Threading.Thread.Sleep(100);

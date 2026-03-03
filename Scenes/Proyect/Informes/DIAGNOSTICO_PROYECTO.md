@@ -33,7 +33,7 @@ Assets/
 │   ├── Vigilante.cs           # Task async – distancia cámara → mTargetSize
 │   ├── ChunkPipeline.cs   # Dispatch a cola + debug visual por LOD
 │   ├── VoxelUtils.cs          # Constantes, GetDensityGlobal, LOD_DATA, índices
-│   ├── VoxelData.cs / VoxelArrayPool.cs
+│   ├── VoxelData.cs / ArrayPool.cs
 │   ├── VoxelBrush.cs          # Edición (excavar/rellenar)
 │   ├── MeshGenerator.cs      # Interfaz Generate(Chunk, Chunk[], size)
 │   ├── MeshData.cs
@@ -95,7 +95,7 @@ Assets/
 ### 5.1 Lo que está bien
 
 - Separación clara: `Grid` (datos), `RenderQueueMonohilo` (trabajo), `World` (orquestación).  
-- Pool de arrays (`VoxelArrayPool`) con lock para tamaños 8³, 16³, 32³.  
+- Pool de arrays (`ArrayPool`) con lock para tamaños 8³, 16³, 32³.  
 - `VoxelUtils` como único punto de acceso para densidad/sólido global y LOD.  
 - LOD por distancia con `LOD_DATA` y procesamiento en dos fases (resample → generate) en la cola.  
 - Liberación de mallas en `Chunk.OnDestroy` para no perder VRAM.

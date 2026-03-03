@@ -43,7 +43,7 @@
 **Objetos static a revisar si hay fuga:**
 - `World.s_AppIsRunning` (bool, no retiene)
 - `Chunk.s_AliveCountValue` (int, no retiene)
-- `VoxelArrayPool.mPool` (se limpia con `Clear()`)
+- `ArrayPool.mPool` (se limpia con `Clear()`)
 - `GeneralData` (mVolumeData, mTerrain, etc.)
 - `DensitySamplerQueueAsync.s_TaskSampler`, `s_MathSampler` (CustomSampler)
 - `RenderQueueAsync` contadores estáticos (solo ints)

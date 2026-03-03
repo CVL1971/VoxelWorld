@@ -61,7 +61,7 @@ public sealed class Chunk
         mWorldOrigin = Vector3Int.zero;
 
         Interlocked.Increment(ref s_AliveCountValue);
-        DeclareSampleArray();
+        //DeclareSampleArray();
     }
 
     public Vector3Int WorldOrigin
@@ -168,13 +168,17 @@ public sealed class Chunk
     // =========================================================
     // GESTIÓN DE VISTA Y MEMORIA
     // =========================================================
-    public void PrepareView(Transform worldRoot, Material surfaceMaterial)
+    public GameObject PrepareView(Transform worldRoot, Material surfaceMaterial)
     {
         mViewGO = new GameObject("Chunk_" + mCoord, typeof(MeshFilter), typeof(MeshRenderer), typeof(MeshCollider));
         mViewGO.transform.parent = worldRoot;
         mViewGO.transform.position = (Vector3)WorldOrigin;
         mViewGO.GetComponent<MeshRenderer>().sharedMaterial = surfaceMaterial;
+
+        return mViewGO;
     }
+
+
 
     public void Redim(int pNewSize)
     {

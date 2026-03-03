@@ -188,7 +188,14 @@ public class RenderQueueAsyncEpoch
     // =========================================================
     public void Apply(Chunk pChunk, MeshData pData)
     {
-        if (pChunk?.mViewGO == null) return;
+        if (pChunk == null) return;
+
+        int index = pChunk.mIndex;
+        if (pChunk.mViewGO == null)
+        {
+            mGrid.SetProcessing(index, false);
+            return;
+        }
 
         MeshFilter vMf = pChunk.mViewGO.GetComponent<MeshFilter>();
         Mesh vMesh = vMf.sharedMesh;
@@ -209,7 +216,6 @@ public class RenderQueueAsyncEpoch
         vMesh.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
         pChunk.mViewGO.GetComponent<MeshRenderer>().enabled = true;
 
-        int index = pChunk.mIndex;
         int lodApplied = Grid.ResolutionToLodIndex(pChunk.mSize);
         mGrid.SetLod(index, lodApplied);
         mGrid.SetProcessing(index, false);

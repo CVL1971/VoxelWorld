@@ -2,10 +2,10 @@ using System.Collections.Generic;
 using System.Collections.Concurrent;
 using UnityEngine;
 
-public static class VoxelArrayPool
+public static class ArrayPool
 {
     
-    // El "Libro de Cuentas" �nico
+    // El "Libro de Cuentas" unico
     private static readonly ConcurrentStack<(float[], float[], float[])> mPool =
          new ConcurrentStack<(float[], float[], float[])>();
 
@@ -13,12 +13,14 @@ public static class VoxelArrayPool
     static int mLod1Length;
     static int mLod2Length;
 
-    static VoxelArrayPool()
+    public static bool mEnsureAwake = false;
+
+    static ArrayPool()
     {
         VoxelUtils.EnsureAwake = true;
         mLod0Length = (int)Mathf.Pow(VoxelUtils.LOD_DATA[0] + 3, 3);
-    mLod1Length = (int)Mathf.Pow(VoxelUtils.LOD_DATA[4] + 3, 3);
-    mLod2Length = (int)Mathf.Pow(VoxelUtils.LOD_DATA[8] + 3, 3);
+        mLod1Length = (int)Mathf.Pow(VoxelUtils.LOD_DATA[4] + 3, 3);
+        mLod2Length = (int)Mathf.Pow(VoxelUtils.LOD_DATA[8] + 3, 3);
    
     }
 

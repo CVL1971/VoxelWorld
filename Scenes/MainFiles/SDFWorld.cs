@@ -92,12 +92,14 @@ public class World : MonoBehaviour
     void InitWorld()
     {
         mMeshGenerator = mSurfaceNetQEF;
-
+        GameObjectPool.Initialize(mGrid.mWorldRoot.transform, mSurfaceMaterial);
+    
         for (int i = 0; i < mGrid.mChunks.Length; i++)
         {
             mGrid.SetProcessing(i, true);
             Chunk vChunk = mGrid.mChunks[i];
-            vChunk.PrepareView(mGrid.mWorldRoot.transform, mSurfaceMaterial);
+
+            //vChunk.PrepareView(mGrid.mWorldRoot.transform, mSurfaceMaterial);
             mChunkPipeline.EnqueueDensity(vChunk);
         }
 
@@ -134,7 +136,6 @@ public class World : MonoBehaviour
         if (mCamera != null)
             mChunkPipeline.Update(mCamera.transform.position);
 
-        //mChunkPipeline.Update(Vector3.zero);
     }
 
     void OnDisable()

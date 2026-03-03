@@ -53,7 +53,7 @@ Se considera que un script **está referenciado** si existe una cadena de refere
 | 12 | TestVelocidad | `Scenes/TestVelocidad.cs` |
 | 13 | versionworld | `Scenes/versionworld.cs` |
 | 14 | VoxelAddressing | `Scenes/VoxelAddressing.cs` |
-| 15 | VoxelArrayPool | `Scenes/VoxelArrayPool.cs` |
+| 15 | ArrayPool | `Scenes/MainFiles/VoxelArrayPool.cs` |
 | 16 | VoxelCubeGeometry | `Scenes/VoxelCubeGeometry.cs` |
 | 17 | VoxelData | `Scenes/VoxelData.cs` |
 | 18 | VoxelFaceGeometry | `Scenes/VoxelFaceGeometry.cs` |

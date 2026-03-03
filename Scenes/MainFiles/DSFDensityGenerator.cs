@@ -90,38 +90,56 @@ public static class SDFGenerator
         // Margen de seguridad para variaciones locales del ruido entre muestras
         const float margin = 8.0f;
 
-        // ¿Es aire puro? (El suelo más alto está por debajo de la base del chunk)
+        // ¿Es aire puro ? (El suelo más alto está por debajo de la base del chunk)
         if (origin.y > maxH + margin)
         {
-            SetChunkConstant(pChunk, 0.0f); // Densidad aire
             pChunk.mBool2 = true; // Tiene aire
             pChunk.mBool1 = false; // No tiene sólido
-            FinalizeSample(savedSize);
             return;
         }
 
         // ¿Es sólido puro? (El valle más profundo está por encima del tope del chunk)
         if (origin.y + chunkSize < minH - margin)
         {
-            SetChunkConstant(pChunk, 1.0f); // Densidad sólido
             pChunk.mBool1 = true; // Tiene sólido
-            pChunk.mBool2 = false; // No tiene aire
-            FinalizeSample(savedSize);
+            pChunk.mBool2 = false; // Tiene aire
             return;
         }
 
-        // --- PROCESO NORMAL (CHUNK DE SUPERFICIE) ---
-        int[] resolutions = { (int)VoxelUtils.LOD_DATA[0], (int)VoxelUtils.LOD_DATA[4], (int)VoxelUtils.LOD_DATA[8] };
+        //PROCESO NORMAL DE LLENADO DE CHUNK CON SUPERFICIE
 
-        foreach (int N in resolutions)
+        var arrays = (pChunk.mSample0 != null)
+            ? (pChunk.mSample0, pChunk.mSample1, pChunk.mSample2)
+            : ArrayPool.Get();
+
+        float[] lod0 = arrays.Item1;
+        float[] lod1 = arrays.Item2;
+        float[] lod2 = arrays.Item3;
+
+        int[] resolutions = {
+    (int)VoxelUtils.LOD_DATA[0],
+    (int)VoxelUtils.LOD_DATA[4],
+    (int)VoxelUtils.LOD_DATA[8]
+};
+
+        float[][] caches = { lod0, lod1, lod2 };
+
+        pChunk.ResetGenericBools();
+
+        for (int r = 0; r < resolutions.Length; r++)
         {
+            int N = resolutions[r];
             pChunk.mSize = N;
+
             int paddedRes = N + 3;
             float vStep = chunkSize / (float)N;
+
+            float[] cache = caches[r];
 
             for (int z = 0; z < paddedRes; z++)
             {
                 float worldZ = origin.z + ((z - 1) * vStep);
+
                 for (int x = 0; x < paddedRes; x++)
                 {
                     float worldX = origin.x + ((x - 1) * vStep);
@@ -131,10 +149,14 @@ public static class SDFGenerator
                     {
                         float worldY = origin.y + ((y - 1) * vStep);
 
-                        // Mantenemos tu lógica de gradiente libre
                         float density = (height - worldY) + ISO_SURFACE;
 
-                        pChunk.SetDensity(x - 1, y - 1, z - 1, density);
+                        // índice correcto usando el mismo layout que Chunk.IndexSample
+                        int idx =
+                            x +
+                            paddedRes * (y + paddedRes * z);
+
+                        cache[idx] = density;
 
                         if (x > 0 && x <= N && y > 0 && y <= N && z > 0 && z <= N)
                         {
@@ -145,29 +167,35 @@ public static class SDFGenerator
                 }
             }
         }
-        FinalizeSample(savedSize);
-    }
 
-    // Método auxiliar interno para rellenar caches rápidamente en early exits
-    private static void SetChunkConstant(Chunk pChunk, float val)
-    {
-        int[] resolutions = { (int)VoxelUtils.LOD_DATA[0], (int)VoxelUtils.LOD_DATA[4], (int)VoxelUtils.LOD_DATA[8] };
-        foreach (int N in resolutions)
+        bool isSurface = pChunk.mBool1 && pChunk.mBool2;
+        pChunk.mGrid.MarkSurface(pChunk);
+        bool hadArrays = pChunk.mSample0 != null;
+
+        if (isSurface)
         {
-            pChunk.mSize = N;
-            int paddedRes = N + 3;
-            for (int z = 0; z < paddedRes; z++)
-                for (int x = 0; x < paddedRes; x++)
-                    for (int y = 0; y < paddedRes; y++)
-                        pChunk.SetDensity(x - 1, y - 1, z - 1, val);
+            if (!hadArrays)
+            {
+                pChunk.mSample0 = lod0;
+                pChunk.mSample1 = lod1;
+                pChunk.mSample2 = lod2;
+            }
         }
-    }
+        else
+        {
+            if (hadArrays)
+            {
+                ArrayPool.Return(pChunk.mSample0, pChunk.mSample1, pChunk.mSample2);
 
-    private static void FinalizeSample(int savedSize)
-    {
-        //watch.Stop();
-        //double ms = watch.Elapsed.TotalMilliseconds;
-        //UnityEngine.Debug.Log($"[Cronómetro] Tiempo transcurrido: {ms:F4} ms");
+                pChunk.mSample0 = null;
+                pChunk.mSample1 = null;
+                pChunk.mSample2 = null;
+            }
+            else
+            {
+                ArrayPool.Return(lod0, lod1, lod2);
+            }
+        }
     }
 
     public static float GetGeneratedHeight(float x, float z)

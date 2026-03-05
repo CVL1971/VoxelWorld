@@ -36,7 +36,7 @@ public class SurfaceNetsGeneratorQEF3caches : MeshGenerator
                 cache = mDCache.mSample2;
             }
 
-            if (cache == null) return meshData;
+            //if (cache == null) return meshData;
 
             // p = size+3: array cubre posiciones -1 a size+1 (geometría de fronteras entre chunks)
             int p = size + 3;

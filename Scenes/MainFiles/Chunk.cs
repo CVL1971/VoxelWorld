@@ -79,6 +79,7 @@ public sealed class Chunk
 
         mDCache = pDcache;
         Interlocked.Increment(ref mDCache.mRefs);
+        mActiveCache = GetActiveCache();
     }
 
     public void ReturnDCache()
@@ -90,6 +91,7 @@ public sealed class Chunk
         }
 
         mDCache = null;
+        mActiveCache = null;
     }
 
     public Vector3Int WorldOrigin
@@ -129,8 +131,6 @@ public sealed class Chunk
 
     private float[] GetActiveCache()
     {
-        //if (mDCache == null)
-        //    return null;
         if (mSize == VoxelUtils.LOD_DATA[0]) return mDCache.mSample0;
         if (mSize == VoxelUtils.LOD_DATA[4]) return mDCache.mSample1;
         return mDCache.mSample2;
@@ -213,7 +213,9 @@ public sealed class Chunk
         // Al no haber mVoxels, el redimensionado es un simple cambio de puntero de resolución.
         // El sistema de renderizado usará automáticamente el array de caché correspondiente.
         mSize = pNewSize;
+        if (mDCache!=null)
         mActiveCache = GetActiveCache();
+        else mActiveCache = null;
     }
 
     public void ResetGenericBools()

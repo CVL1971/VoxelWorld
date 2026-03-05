@@ -98,6 +98,7 @@ public class World : MonoBehaviour
         {
             mGrid.SetProcessing(i, true);
             Chunk vChunk = mGrid.mChunks[i];
+            //mGrid.mChunks[i].mSize = 8;
             vChunk.Redim(VoxelUtils.LOD_DATA[VoxelUtils.GetInfoLod(2)]);
             //vChunk.PrepareView(mGrid.mWorldRoot.transform, mSurfaceMaterial);
             mChunkPipeline.EnqueueDensity(vChunk);

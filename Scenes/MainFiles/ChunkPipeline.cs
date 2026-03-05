@@ -72,8 +72,9 @@ public class ChunkPipeline
 
     // ==========================================
     // PROCESAR CHUNKS DE LOD PENDIENTES: REDIM, ENCOLAR RENDER, DIBUJAR DEBUG.
+    // El Vigilante solo selecciona chunks con BIT_SURFACE (ya tienen densidad en las 3 resoluciones).
+    // No requiere re-sampleo: Redim cambia el puntero activo; EnqueueRender directamente.
     // ==========================================
-
 
     public int ProcessPendingResamples(int maxPerFrame)
     {

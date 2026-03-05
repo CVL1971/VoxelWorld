@@ -60,7 +60,7 @@ public class World : MonoBehaviour
        
 
         mChunkSize = VoxelUtils.UNIVERSAL_CHUNK_SIZE;
-        mGridInChunks = new Vector3Int(91, 7, 91);
+        mGridInChunks = new Vector3Int(91, 11, 91);
         mGridInUnits = mGridInChunks * mChunkSize;
         mGrid = new Grid(mGridInChunks, mChunkSize, mCamera.transform.position);
 
@@ -98,7 +98,7 @@ public class World : MonoBehaviour
         {
             mGrid.SetProcessing(i, true);
             Chunk vChunk = mGrid.mChunks[i];
-
+            vChunk.Redim(VoxelUtils.LOD_DATA[VoxelUtils.GetInfoLod(2)]);
             //vChunk.PrepareView(mGrid.mWorldRoot.transform, mSurfaceMaterial);
             mChunkPipeline.EnqueueDensity(vChunk);
         }
@@ -120,7 +120,7 @@ public class World : MonoBehaviour
         foreach (int vIndex in vChunksToRebuild)
         {
             Chunk vChunk = mGrid.mChunks[vIndex];
-
+            mGrid.SetProcessing(vIndex, true);
             mChunkPipeline.EnqueueRender(vChunk, mSurfaceNet);
         }
 

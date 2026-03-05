@@ -19,7 +19,7 @@ public sealed class Chunk
     internal int mPending; // contador privado del sistema
 
     /// <summary> Resolución actual del chunk (32, 16 u 8). </summary>
-    public int mSize;
+    public int mSize { get; private set; }
     /// <summary> Resolución objetivo para la próxima actualización de LOD. </summary>
 
     public bool mIsEdited = false;
@@ -39,6 +39,7 @@ public sealed class Chunk
     public float[] mSample0; // LOD 0: (32+2)^3
     public float[] mSample1; // LOD 1: (16+2)^3
     public float[] mSample2; // LOD 2: (8+2)^3
+    private float[] mActiveCache;
 
     public GameObject mViewGO;
 
@@ -73,18 +74,18 @@ public sealed class Chunk
     }
 
 
-    public void DeclareSampleArray()
-    {
-        // Padding +2 por cara: posiciones -1 a size+1 (necesario para geometría de fronteras entre chunks)
-        // Res0 = 35, Res1 = 19, Res2 = 11
-        int res0 = VoxelUtils.LOD_DATA[0] + 3;
-        int res1 = VoxelUtils.LOD_DATA[4] + 3;
-        int res2 = VoxelUtils.LOD_DATA[8] + 3;
+    //public void DeclareSampleArray()
+    //{
+    //    // Padding +2 por cara: posiciones -1 a size+1 (necesario para geometría de fronteras entre chunks)
+    //    // Res0 = 35, Res1 = 19, Res2 = 11
+    //    int res0 = VoxelUtils.LOD_DATA[0] + 3;
+    //    int res1 = VoxelUtils.LOD_DATA[4] + 3;
+    //    int res2 = VoxelUtils.LOD_DATA[8] + 3;
 
-        mSample0 = new float[res0 * res0 * res0];
-        mSample1 = new float[res1 * res1 * res1];
-        mSample2 = new float[res2 * res2 * res2];
-    }
+    //    mSample0 = new float[res0 * res0 * res0];
+    //    mSample1 = new float[res1 * res1 * res1];
+    //    mSample2 = new float[res2 * res2 * res2];
+    //}
 
     // =========================================================
     // INDEXACIÓN Y DIRECCIONAMIENTO
@@ -112,16 +113,14 @@ public sealed class Chunk
 
     public float GetDensity(int x, int y, int z)
     {
-        float[] cache = GetActiveCache();
         int p = mSize + 3;
-        return cache[IndexSample(x, y, z, p)];
+        return mActiveCache[IndexSample(x, y, z, p)];
     }
 
     public void SetDensity(int x, int y, int z, float pDensity)
     {
-        float[] cache = GetActiveCache();
         int p = mSize + 3;
-        cache[IndexSample(x, y, z, p)] = pDensity;
+        mActiveCache[IndexSample(x, y, z, p)] = pDensity;
         // mIsEdited solo se marca en ModifyWorld/ApplyBrush (edición usuario), no en SDFGenerator
     }
 
@@ -185,6 +184,7 @@ public sealed class Chunk
         // Al no haber mVoxels, el redimensionado es un simple cambio de puntero de resolución.
         // El sistema de renderizado usará automáticamente el array de caché correspondiente.
         mSize = pNewSize;
+        mActiveCache = GetActiveCache();
     }
 
     public void ResetGenericBools()

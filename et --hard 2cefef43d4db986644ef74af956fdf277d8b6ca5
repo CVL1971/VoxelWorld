@@ -1,0 +1,245 @@
+[33mcommit 4311732230919e2317047431865dc92a52ffcbdd[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m)[m
+Author: carlos <titerote71@gmail.com>
+Date:   Tue Mar 3 21:24:28 2026 +0100
+
+    se realiza toda la migracion a short, en esta version no funciona
+
+[33mcommit 2cefef43d4db986644ef74af956fdf277d8b6ca5[m
+Author: carlos <titerote71@gmail.com>
+Date:   Tue Mar 3 02:53:27 2026 +0100
+
+    primera optimizacion de memoria, aire y solido ya no tienen ni gameobject ni densidades
+
+[33mcommit 717676a32739257217bd48cbc5b694559fca014d[m[33m ([m[1;31morigin/main[m[33m)[m
+Author: carlos <titerote71@gmail.com>
+Date:   Sun Mar 1 09:35:42 2026 +0100
+
+    Reorganizacion de proyecto
+
+[33mcommit 9e3fc21a82627a3c01dfc514006fa9033142eb98[m
+Author: carlos <titerote71@gmail.com>
+Date:   Sat Feb 28 02:40:35 2026 +0100
+
+    limpieza, eliminacion de forceenqueue, eliminacion de control de vesiones, y nuevo scheduler añadido, el epoch
+
+[33mcommit abcecfd2c7c17e6289a4cc8a151b310ce93aa639[m
+Author: carlos <titerote71@gmail.com>
+Date:   Fri Feb 27 16:34:48 2026 +0100
+
+    detectamos aire en el sampler, y hemos creado chunkpipeline
+
+[33mcommit 4e9f9719de478d522dc6e03b52da5a30d82964b9[m
+Author: carlos <titerote71@gmail.com>
+Date:   Thu Feb 26 05:39:46 2026 +0100
+
+    primera parte de streaming eje x casi correjido
+
+[33mcommit 02c4c3d8c13707b66e5db2e8e11f67bfb6819338[m[33m ([m[1;31morigin/main-v1[m[33m, [m[1;32mmain-v1[m[33m)[m
+Author: carlos <titerote71@gmail.com>
+Date:   Thu Feb 26 01:41:36 2026 +0100
+
+    primera implementacion de streaming, errores
+
+[33mcommit 07a578d5dc523b89b0bd1bddaf96b59eb0545c15[m
+Author: carlos <titerote71@gmail.com>
+Date:   Wed Feb 25 02:13:36 2026 +0100
+
+    antes de indireccion
+
+[33mcommit e36ece5fe4779749a2bbcb7d9142b54584970261[m
+Author: carlos <titerote71@gmail.com>
+Date:   Tue Feb 24 00:02:57 2026 +0100
+
+    mejor version de contour
+
+[33mcommit 2d33c01aa3210efece7374fb5087f0a53be858d7[m
+Author: carlos <titerote71@gmail.com>
+Date:   Sat Feb 21 21:59:13 2026 +0100
+
+    el remallado ya es asincrono, y hay coordenadas globales para el streaming, testeado p or cursor
+
+[33mcommit 98d567e975c7573566431fedabcdee4db2827d58[m
+Author: carlos <titerote71@gmail.com>
+Date:   Sat Feb 21 12:48:11 2026 +0100
+
+    1º adaptacion de sistmas de rfencia global para straming
+
+[33mcommit 837bfc05d37e39b903d7c660de8f87b2b0f4d810[m
+Author: carlos <titerote71@gmail.com>
+Date:   Fri Feb 20 22:14:40 2026 +0100
+
+    added cpumonitor
+
+[33mcommit 35ba4d5651f0063f855eaa8318a8c04d2bfe3117[m
+Author: carlos <titerote71@gmail.com>
+Date:   Thu Feb 19 23:48:37 2026 +0100
+
+    adaptation 3 buffers lod complete
+
+[33mcommit 9505e85ea128decabede4c1ac8a414341bb0f920[m
+Author: carlos <titerote71@gmail.com>
+Date:   Thu Feb 19 16:55:09 2026 +0100
+
+    cursor solucionado costuras
+
+[33mcommit 3434f0bd7c49cdbfc33bf07f033fe7eb45d97a60[m
+Author: carlos <titerote71@gmail.com>
+Date:   Thu Feb 19 15:26:59 2026 +0100
+
+    problemas arreglados por cursor excepto normales
+
+[33mcommit 6d32700d5a9ec4678b33c9822a265ee05b8aabf4[m
+Author: carlos <titerote71@gmail.com>
+Date:   Thu Feb 19 14:23:11 2026 +0100
+
+    cursor arregla aparentemente el terreno pero nohay lod
+
+[33mcommit e3d0a2da6c3199d0869c98c5fca7b4f77764c5f7[m
+Author: carlos <titerote71@gmail.com>
+Date:   Wed Feb 18 23:36:02 2026 +0100
+
+    minimas modificaciones anterior commit, este es mas completo
+
+[33mcommit 196012d87b77b5cb87648ce5bf0530e7883e40f7[m
+Author: carlos <titerote71@gmail.com>
+Date:   Wed Feb 18 23:10:50 2026 +0100
+
+    se incluye logica para 3 caches por lods, no se manifiesta, esta contenida
+
+[33mcommit 24c1edb209fec36c534328528157c1c13d5a490a[m
+Author: carlos <titerote71@gmail.com>
+Date:   Wed Feb 18 02:48:12 2026 +0100
+
+    primera vision de algo de rendimiento
+
+[33mcommit 7d577ea132e9eaf200bd48b0b44e75e3d1f12881[m
+Author: carlos <titerote71@gmail.com>
+Date:   Tue Feb 17 00:18:00 2026 +0100
+
+    correccion de mesher, implementacion de statusgrid
+
+[33mcommit 4ba6b0cb12238cf317b71cf96e2a6409eba29bd3[m
+Author: carlos <titerote71@gmail.com>
+Date:   Sun Feb 15 00:24:27 2026 +0100
+
+    limpieza y comentarios sobre codigo de modificaciones de themaster
+
+[33mcommit f72f3600c2347efa9ca72ec01b8e87b25c4f2c01[m
+Author: carlos <titerote71@gmail.com>
+Date:   Fri Feb 13 14:11:46 2026 +0100
+
+    1 fase lod funcional
+
+[33mcommit dd56d3f6d29636a35f58985172a278fdf994f17a[m
+Author: carlos <titerote71@gmail.com>
+Date:   Fri Feb 13 04:20:38 2026 +0100
+
+    parece que se ha recuperado incluso las interlod
+
+[33mcommit a0ce183df5720ad410f6ea4b2c0dcd3aed276063[m
+Author: carlos <titerote71@gmail.com>
+Date:   Fri Feb 13 04:01:11 2026 +0100
+
+    curiosidad errores parece que interlod reparados, solo extralod
+
+[33mcommit 5636267fc16f290f1c60fd19640905707d18f0d8[m
+Author: carlos <titerote71@gmail.com>
+Date:   Fri Feb 13 02:46:36 2026 +0100
+
+    empezamos con cursor, deshacer si hay problemas
+
+[33mcommit 6285dcb6e4c1996199040a689d0ea74360240f3d[m
+Author: carlos <titerote71@gmail.com>
+Date:   Thu Feb 12 18:11:48 2026 +0100
+
+    integracion LOD completa primera toma contacto
+
+[33mcommit bbb0eccce87dffa8afe2f2e0f798ddc1ec7f031e[m
+Author: carlos <titerote71@gmail.com>
+Date:   Thu Feb 12 12:18:47 2026 +0100
+
+    new queue render monohilo par depuracion
+
+[33mcommit b6e76321246d0dd651b596436c70d9d6210105d2[m
+Author: carlos <titerote71@gmail.com>
+Date:   Thu Feb 12 11:41:16 2026 +0100
+
+    independizando meshrenderers para que no asuman valores de chunk, test visuales ok
+
+[33mcommit a1d718eba8ce578798cd50c4039d42e764c5e83e[m
+Author: carlos <titerote71@gmail.com>
+Date:   Wed Feb 11 20:31:10 2026 +0100
+
+    pro modificacion de los generadores para hacerlos parametricos a el tamaño del voxel
+
+[33mcommit dcb185082ce0c97c4bd2efb9ab4100827533a3bf[m
+Author: carlos <titerote71@gmail.com>
+Date:   Wed Feb 11 11:18:02 2026 +0100
+
+    antes de cambio test decimator colores
+
+[33mcommit 244966152b1fc48f9bdfde7752a379dff679d9c1[m
+Author: carlos <titerote71@gmail.com>
+Date:   Tue Feb 10 22:44:42 2026 +0100
+
+    Pre lod Decimator Manager
+
+[33mcommit 17653a85346f7928be6966880c8f98910af803ac[m
+Author: carlos <titerote71@gmail.com>
+Date:   Mon Feb 9 23:33:09 2026 +0100
+
+    guardado antes de primer test de paralelilazion
+
+[33mcommit 3d232bc697099a88ccea3a7fd2ea6d55a1c13a07[m
+Author: carlos <titerote71@gmail.com>
+Date:   Mon Feb 9 21:50:46 2026 +0100
+
+    optimizaciones y limpieza para multihilo
+
+[33mcommit e591424ef23ff450a6100ede1ceb23b11b12e90e[m
+Author: carlos <titerote71@gmail.com>
+Date:   Sat Feb 7 23:50:30 2026 +0100
+
+    added cache
+
+[33mcommit ced31a2960bc5583a927688072f54ab046d04860[m
+Author: carlos <titerote71@gmail.com>
+Date:   Fri Feb 6 17:29:38 2026 +0100
+
+    Grid 2 Integration
+
+[33mcommit 3496a4d510f4ce1412281da7b8dbfb4a3ec33f10[m
+Author: carlos <titerote71@gmail.com>
+Date:   Fri Feb 6 16:13:42 2026 +0100
+
+    Grid 1 Integration
+
+[33mcommit 47ca6e1931da3103a7fae1584dd5fc0928f991a8[m
+Author: carlos <titerote71@gmail.com>
+Date:   Thu Feb 5 21:41:52 2026 +0100
+
+    save preLOD
+
+[33mcommit 941419dc18c92838b56115f7043c788e255ff9cd[m
+Author: carlos <titerote71@gmail.com>
+Date:   Wed Feb 4 18:19:05 2026 +0100
+
+    introduccion de qte
+
+[33mcommit 8fd5f838e649ac71662f840abf2057f0cb9bdc87[m
+Author: carlos <titerote71@gmail.com>
+Date:   Wed Feb 4 02:06:48 2026 +0100
+
+    cambios sobre oclusion ambiental
+
+[33mcommit e0fb439250af27736f618a44b9ed4a3a717a4578[m
+Author: carlos <titerote71@gmail.com>
+Date:   Wed Feb 4 01:33:09 2026 +0100
+
+    primera modificacion
+
+[33mcommit e96710489f9d617e90923c1fa4664a5d0ae8c0a0[m
+Author: carlos <titerote71@gmail.com>
+Date:   Wed Feb 4 01:01:44 2026 +0100
+
+    Initial commit

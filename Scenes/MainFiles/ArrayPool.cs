@@ -1,17 +1,18 @@
-using System.Collections.Generic;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.Threading;
 using UnityEngine;
 
 public static class ArrayPool
 {
     
     // El "Libro de Cuentas" unico
-    private static readonly ConcurrentStack<(float[], float[], float[])> mPool =
-         new ConcurrentStack<(float[], float[], float[])>();
+    private static readonly ConcurrentQueue<(float[] pLod0, float[] pLod1, float[] pLod2, int[] pRefs)> mPool =
+         new ConcurrentQueue<(float[], float[], float[], int[])>();
 
-    static int mLod0Length;
-    static int mLod1Length;
-    static int mLod2Length;
+    static readonly int mLod0Length;
+    static readonly int mLod1Length;
+    static readonly int mLod2Length;
 
     public static bool mEnsureAwake = false;
 
@@ -25,22 +26,24 @@ public static class ArrayPool
     }
 
 
-    public static (float[], float[], float[]) Get()
+    public static (float[] pLod0, float[] pLod1, float[] pLod2, int[] pRefs) Get()
     {
-        (float[], float[], float[]) vLodSamples;
+        (float[], float[], float[], int[] pRefs) vLodSamples;
+        int count = mPool.Count;
 
-        if (!mPool.TryPop(out vLodSamples))
+        while (count-- >0 && mPool.TryDequeue(out vLodSamples))
         {
-            return (new float[mLod0Length], new float[mLod1Length], new float[mLod2Length]);
+            if (Interlocked.CompareExchange(ref vLodSamples.pRefs[0], 1, 0) == 0)
+                return vLodSamples;
+
+            mPool.Enqueue(vLodSamples);
         }
 
-        else return vLodSamples;
-     
+        return (new float[mLod0Length], new float[mLod1Length], new float[mLod2Length], new int[1] { 1 });
     }
 
-    public static void Return(float[] pLod0, float[] pLod1, float[] pLod2)
+    public static void Return((float[] pLod0, float[] pLod1, float[] pLod2, int[] pRefs) pLodSamples)
     {
-        mPool.Push( (pLod0,pLod1,pLod2));
-
+        mPool.Enqueue(pLodSamples);
     }
 }

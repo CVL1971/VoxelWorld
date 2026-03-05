@@ -156,12 +156,8 @@ internal class DensitySamplerQueueEpoch
 
             if (structural)
             {
-                int index = chunk.mIndex;
-
-                chunk.mGrid.mStatusGrid[index] = 0;
-                chunk.mGrid.Surface(index, false);
-                chunk.mGrid.SetProcessing(index, false);
-
+                // No modificar mStatusGrid ni SetProcessing aquí: el chunk sigue en el pipeline (EnqueueRender).
+                // ResetChunkState en RenderQueue hará el reset completo y pondrá SetProcessing(false).
                 chunk.mIsEdited = false;
                 chunk.ResetGenericBools();
 

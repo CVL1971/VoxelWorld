@@ -1,6 +1,7 @@
 using System.Diagnostics;
-using UnityEngine;
 using System.IO;
+using System.Threading;
+using UnityEngine;
 
 public static class SDFGenerator
 {
@@ -11,7 +12,7 @@ public static class SDFGenerator
     // El valor donde el Surface Nets coloca la malla.
     // En SDF puro suele ser 0, pero mantengo 0.5f por compatibilidad con tu sistema.
     private const float ISO_SURFACE = 0.5f;
-  
+
 
     /// <summary>
     /// NUEVA LÓGICA: Devuelve la distancia vertical a la superficie + el offset de isosuperficie.
@@ -109,13 +110,12 @@ public static class SDFGenerator
 
         //PROCESO NORMAL DE LLENADO DE CHUNK CON SUPERFICIE
 
-        var arrays = (pChunk.mSample0 != null)
-            ? (pChunk.mSample0, pChunk.mSample1, pChunk.mSample2)
-            : ArrayPool.Get();
+        ArrayPool.DCache arrays;
+        arrays = ArrayPool.Get(); // Con devolucion final la creamos, no necesidad de incremento
 
-        float[] lod0 = arrays.Item1;
-        float[] lod1 = arrays.Item2;
-        float[] lod2 = arrays.Item3;
+        float[] lod0 = arrays.mSample0;
+        float[] lod1 = arrays.mSample1;
+        float[] lod2 = arrays.mSample2;
 
         int[] resolutions = {(int)VoxelUtils.LOD_DATA[0],(int)VoxelUtils.LOD_DATA[4],(int)VoxelUtils.LOD_DATA[8]
 };
@@ -167,43 +167,23 @@ public static class SDFGenerator
 
         bool isSurface = pChunk.mBool1 && pChunk.mBool2;
         pChunk.mGrid.MarkSurface(pChunk);
-        bool hadArrays = pChunk.mSample0 != null;
+      
 
         if (isSurface)
         {
-            if (!hadArrays)
-            {
-                pChunk.mSample0 = lod0;
-                pChunk.mSample1 = lod1;
-                pChunk.mSample2 = lod2;
-            }
-
-            else
-            {
-                //ArrayPool.Return(pChunk.mSample0, pChunk.mSample1, pChunk.mSample2);
-                pChunk.mSample0 = lod0;
-                pChunk.mSample1 = lod1;
-                pChunk.mSample2 = lod2;
-            }
+            pChunk.AssignDCache(arrays);
         }
         else
         {
-            if (hadArrays)
-            {
-                //ArrayPool.Return(pChunk.mSample0, pChunk.mSample1, pChunk.mSample2);
-                ArrayPool.Return(lod0, lod1, lod2);
+            ArrayPool.Return(arrays);
+            Interlocked.Decrement(ref arrays.mRefs);
+            pChunk.ReturnDCache();
 
-                pChunk.mSample0 = null;
-                pChunk.mSample1 = null;
-                pChunk.mSample2 = null;
-            }
-            else
-            {
-                ArrayPool.Return(lod0, lod1, lod2);
-            }
+            return;
         }
 
-        //pChunk.mSize = VoxelUtils.LOD_DATA[8]/ // 8
+        Interlocked.Decrement(ref arrays.mRefs); //tanto si asignamos como si devolvemos
+                                                 //este clase ya no referenciara ese array.
     }
 
     //public static float GetGeneratedHeight(float x, float z)
@@ -241,7 +221,7 @@ public static class SDFGenerator
     /// <summary>
     /// Inyecta un mapa de alturas 2D como un volumen SDF coherente.
     /// </summary>
-    
+
     public static Vector3 CalculateNormal(Vector3 worldPos)
     {
         const float h = 0.1f;

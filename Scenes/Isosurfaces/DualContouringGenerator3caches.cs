@@ -1,5 +1,6 @@
-using UnityEngine;
 using System.Collections.Generic;
+using System.Threading;
+using UnityEngine;
 
 public class DualContouringGenerator3caches : MeshGenerator
 {
@@ -13,44 +14,69 @@ public class DualContouringGenerator3caches : MeshGenerator
 
         MeshData mesh = new MeshData();
 
-        float[] cache = (lodIndex == 0) ? chunk.mSample0 :
-                        (lodIndex == 4) ? chunk.mSample1 : chunk.mSample2;
+        // 1. SELECCIÓN DE CACHÉ SEGÚN LOD
+        float[] cache;
+        ArrayPool.DCache mDCache = chunk.mDCache;
+        Interlocked.Increment(ref mDCache.mRefs);
 
-        if (cache == null) return mesh;
+        try
+        {
 
-        // Stride debe coincidir con Chunk: array (size+3)^3, posiciones -1..size+1
-        int p = size + 3;
+            if (lodIndex == 0)
+            {
+                cache = mDCache.mSample0;
+            }
+            else if (lodIndex == 4)
+            {
+                cache = mDCache.mSample1;
+            }
+            else
+            {
+                cache = mDCache.mSample2;
+            }
 
-        // vmap incluye celdas -1..size para geometría en bordes (conexión entre chunks)
-        int n = size + 2;
-        int[,,] vmap = new int[n, n, n];
-        for (int x = 0; x < n; x++)
-            for (int y = 0; y < n; y++)
-                for (int z = 0; z < n; z++)
-                    vmap[x, y, z] = -1;
+            if (cache == null) return mesh;
 
-        // 1) UN VÉRTICE POR CELDA QUE CRUZA EL ISO (celdas -1..size)
-        for (int x = -1; x <= size; x++)
-            for (int y = -1; y <= size; y++)
-                for (int z = -1; z <= size; z++)
-                {
-                    if (!CellCrossesIso(cache, x, y, z, p))
-                        continue;
+            // Stride debe coincidir con Chunk: array (size+3)^3, posiciones -1..size+1
+            int p = size + 3;
 
-                    Vector3 pos = SolveQEFStable(chunk, cache, x, y, z, p, vStep);
+            // vmap incluye celdas -1..size para geometría en bordes (conexión entre chunks)
+            int n = size + 2;
+            int[,,] vmap = new int[n, n, n];
+            for (int x = 0; x < n; x++)
+                for (int y = 0; y < n; y++)
+                    for (int z = 0; z < n; z++)
+                        vmap[x, y, z] = -1;
 
-                    int index = mesh.vertices.Count;
-                    vmap[x + 1, y + 1, z + 1] = index;
-                    mesh.vertices.Add(pos);
+            // 1) UN VÉRTICE POR CELDA QUE CRUZA EL ISO (celdas -1..size)
+            for (int x = -1; x <= size; x++)
+                for (int y = -1; y <= size; y++)
+                    for (int z = -1; z <= size; z++)
+                    {
+                        if (!CellCrossesIso(cache, x, y, z, p))
+                            continue;
 
-                    Vector3 world = (Vector3)chunk.WorldOrigin + pos;
-                    mesh.normals.Add(SDFGenerator.CalculateNormal(world));
-                }
+                        Vector3 pos = SolveQEFStable(chunk, cache, x, y, z, p, vStep);
 
-        // 2) CARAS POR ARISTA
-        EmitEdgesX(cache, vmap, mesh.triangles, size, p);
-        EmitEdgesY(cache, vmap, mesh.triangles, size, p);
-        EmitEdgesZ(cache, vmap, mesh.triangles, size, p);
+                        int index = mesh.vertices.Count;
+                        vmap[x + 1, y + 1, z + 1] = index;
+                        mesh.vertices.Add(pos);
+
+                        Vector3 world = (Vector3)chunk.WorldOrigin + pos;
+                        mesh.normals.Add(SDFGenerator.CalculateNormal(world));
+                    }
+
+            // 2) CARAS POR ARISTA
+            EmitEdgesX(cache, vmap, mesh.triangles, size, p);
+            EmitEdgesY(cache, vmap, mesh.triangles, size, p);
+            EmitEdgesZ(cache, vmap, mesh.triangles, size, p);
+
+        }
+
+        finally
+        {
+            Interlocked.Decrement(ref mDCache.mRefs);
+        }
 
         return mesh;
     }

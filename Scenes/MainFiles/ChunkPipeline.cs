@@ -42,7 +42,7 @@ public class ChunkPipeline
     // ==========================================
     // BUCLE PRINCIPAL DE ACTUALIZACIÓN (UPDATE)
     // ==========================================
- 
+
     public void Update(Vector3 pPlayerPosition)
     {
         if (mGrid.TryGetNewPlayerChunk(pPlayerPosition, out Vector3Int newChunk))
@@ -57,7 +57,11 @@ public class ChunkPipeline
         while (TryDequeueDensityResult(out Chunk densityChunk, out bool pStructural))
         {
             mGrid.MarkSurface(densityChunk);
-            EnqueueRender(densityChunk, mMeshGenerator, pStructural);
+
+            if (densityChunk.mBool1 && densityChunk.mBool2)
+                {
+                EnqueueRender(densityChunk, mMeshGenerator, pStructural);
+            }
         }
 
         while (TryDequeueRenderResult(out var r))
@@ -69,7 +73,7 @@ public class ChunkPipeline
     // ==========================================
     // PROCESAR CHUNKS DE LOD PENDIENTES: REDIM, ENCOLAR RENDER, DIBUJAR DEBUG.
     // ==========================================
-   
+
 
     public int ProcessPendingResamples(int maxPerFrame)
     {
@@ -121,7 +125,7 @@ public class ChunkPipeline
 
 
 
-    
+
 
 
     // ==========================================
@@ -166,12 +170,12 @@ public class ChunkPipeline
 
 
 
-       
 
-// ==========================================
-// GESTIÓN DE MUESTREO (DENSITY SAMPLER)
-// ==========================================
-public void EnqueueDensity(Chunk pChunk)
+
+    // ==========================================
+    // GESTIÓN DE MUESTREO (DENSITY SAMPLER)
+    // ==========================================
+    public void EnqueueDensity(Chunk pChunk)
     {
         mDensitySampler.Enqueue(pChunk);
     }
@@ -208,8 +212,8 @@ public void EnqueueDensity(Chunk pChunk)
         mPendingResamples[pChunk] = pTargetRes;
     }
 
-    
 
-    
-  
+
+
+
 }

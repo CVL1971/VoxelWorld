@@ -1,6 +1,8 @@
 using System;
 using System.Threading;
+using Unity.VisualScripting;
 using UnityEngine;
+using static ArrayPool;
 
 public sealed class Chunk
 {
@@ -36,9 +38,11 @@ public sealed class Chunk
     // =========================================================
     // Cada array tiene un padding de +2 (1 unidad por cada lado de los 6 ejes)
     // Esto permite al Mesher ser 100% autónomo.
-    public float[] mSample0; // LOD 0: (32+2)^3
-    public float[] mSample1; // LOD 1: (16+2)^3
-    public float[] mSample2; // LOD 2: (8+2)^3
+
+    public ArrayPool.DCache mDCache;
+    //public float[] mSample0; // LOD 0: (32+2)^3
+    //public float[] mSample1; // LOD 1: (16+2)^3
+    //public float[] mSample2; // LOD 2: (8+2)^3
     private float[] mActiveCache;
 
     public GameObject mViewGO;
@@ -63,6 +67,29 @@ public sealed class Chunk
 
         Interlocked.Increment(ref s_AliveCountValue);
         //DeclareSampleArray();
+    }
+
+    public void AssignDCache(ArrayPool.DCache pDcache)
+    {
+        if (mDCache != null)
+        {
+            Interlocked.Decrement(ref mDCache.mRefs);
+            ArrayPool.Return(mDCache);
+        }
+
+        mDCache = pDcache;
+        Interlocked.Increment(ref mDCache.mRefs);
+    }
+
+    public void ReturnDCache()
+    {
+        if (mDCache != null)
+        {
+            Interlocked.Decrement(ref mDCache.mRefs);
+            ArrayPool.Return(mDCache);
+        }
+
+        mDCache = null;
     }
 
     public Vector3Int WorldOrigin
@@ -102,9 +129,11 @@ public sealed class Chunk
 
     private float[] GetActiveCache()
     {
-        if (mSize == VoxelUtils.LOD_DATA[0]) return mSample0;
-        if (mSize == VoxelUtils.LOD_DATA[4]) return mSample1;
-        return mSample2;
+        //if (mDCache == null)
+        //    return null;
+        if (mSize == VoxelUtils.LOD_DATA[0]) return mDCache.mSample0;
+        if (mSize == VoxelUtils.LOD_DATA[4]) return mDCache.mSample1;
+        return mDCache.mSample2;
     }
 
     // =========================================================
@@ -232,7 +261,7 @@ public sealed class Chunk
     {
         Interlocked.Decrement(ref s_AliveCountValue);
         // Liberamos los arrays para el GC
-        mSample0 = mSample1 = mSample2 = null;
+        //mDCache.mSample0 = mDCache.mSample1 = mDCache.mSample2 = null;
 
         //if (mViewGO != null)
         //{

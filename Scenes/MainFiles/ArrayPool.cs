@@ -5,10 +5,24 @@ using UnityEngine;
 
 public static class ArrayPool
 {
-    
+    public class DCache
+    {
+        public DCache(int pLength0, int pLength1, int pLength2, int pRefs)
+        {
+            mSample0 = new float[pLength0];
+            mSample1 = new float[pLength1]; 
+            mSample2 = new float[pLength2]; 
+            mRefs = pRefs;
+        }
+
+        public readonly float[] mSample0;
+        public readonly float[] mSample1;
+        public readonly float[] mSample2;
+        public int mRefs;
+    }
+
     // El "Libro de Cuentas" unico
-    private static readonly ConcurrentQueue<(float[] pLod0, float[] pLod1, float[] pLod2, int[] pRefs)> mPool =
-         new ConcurrentQueue<(float[], float[], float[], int[])>();
+    private static readonly ConcurrentQueue<DCache> mPool = new ConcurrentQueue<DCache>();
 
     static readonly int mLod0Length;
     static readonly int mLod1Length;
@@ -26,23 +40,24 @@ public static class ArrayPool
     }
 
 
-    public static (float[] pLod0, float[] pLod1, float[] pLod2, int[] pRefs) Get()
+    public static DCache Get()
     {
-        (float[], float[], float[], int[] pRefs) vLodSamples;
+        DCache vLodSamples;
         int count = mPool.Count;
 
         while (count-- >0 && mPool.TryDequeue(out vLodSamples))
         {
-            if (Interlocked.CompareExchange(ref vLodSamples.pRefs[0], 1, 0) == 0)
+            if (Interlocked.CompareExchange(ref vLodSamples.mRefs, 1, 0) == 0)
                 return vLodSamples;
 
             mPool.Enqueue(vLodSamples);
         }
 
-        return (new float[mLod0Length], new float[mLod1Length], new float[mLod2Length], new int[1] { 1 });
+        return (new DCache(mLod0Length, mLod1Length, mLod2Length, 1));
+
     }
 
-    public static void Return((float[] pLod0, float[] pLod1, float[] pLod2, int[] pRefs) pLodSamples)
+    public static void Return(DCache pLodSamples)
     {
         mPool.Enqueue(pLodSamples);
     }

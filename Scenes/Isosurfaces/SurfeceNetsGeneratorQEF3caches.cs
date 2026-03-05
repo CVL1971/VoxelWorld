@@ -1,5 +1,6 @@
-using UnityEngine;
 using System.Collections.Generic;
+using System.Threading;
+using UnityEngine;
 
 public class SurfaceNetsGeneratorQEF3caches : MeshGenerator
 {
@@ -14,52 +15,72 @@ public class SurfaceNetsGeneratorQEF3caches : MeshGenerator
         MeshData meshData = new MeshData();
 
         // 1. SELECCIÓN DE CACHÉ SEGÚN LOD
-        float[] cache = (lodIndex == 0) ? pChunk.mSample0 :
-                        (lodIndex == 4) ? pChunk.mSample1 : pChunk.mSample2;
+        float[] cache;
+        ArrayPool.DCache mDCache = pChunk.mDCache;
+        Interlocked.Increment(ref mDCache.mRefs);
+
+        try
+        {
 
 
-        
+            if (lodIndex == 0)
+            {
+                cache = mDCache.mSample0;
+            }
+            else if (lodIndex == 4)
+            {
+                cache = mDCache.mSample1;
+            }
+            else
+            {
+                cache = mDCache.mSample2;
+            }
 
+            if (cache == null) return meshData;
 
-        if (cache == null) return meshData;
+            // p = size+3: array cubre posiciones -1 a size+1 (geometría de fronteras entre chunks)
+            int p = size + 3;
 
-        // p = size+3: array cubre posiciones -1 a size+1 (geometría de fronteras entre chunks)
-        int p = size + 3;
+            // 2. FASE DE VÉRTICES
+            // Celdas 0..size: incluye las del borde para generar vértices que conectan con vecinos
+            int[,,] vmap = new int[size + 1, size + 1, size + 1];
 
-        // 2. FASE DE VÉRTICES
-        // Celdas 0..size: incluye las del borde para generar vértices que conectan con vecinos
-        int[,,] vmap = new int[size + 1, size + 1, size + 1];
-
-        for (int z = 0; z <= size; z++)
-            for (int y = 0; y <= size; y++)
-                for (int x = 0; x <= size; x++)
-                {
-                    // Llamada corregida con 'p' y 'ISO_THRESHOLD'
-                    if (CellCrossesIso(cache, x, y, z, p, ISO_THRESHOLD))
+            for (int z = 0; z <= size; z++)
+                for (int y = 0; y <= size; y++)
+                    for (int x = 0; x <= size; x++)
                     {
-                        vmap[x, y, z] = meshData.vertices.Count;
+                        // Llamada corregida con 'p' y 'ISO_THRESHOLD'
+                        if (CellCrossesIso(cache, x, y, z, p, ISO_THRESHOLD))
+                        {
+                            vmap[x, y, z] = meshData.vertices.Count;
 
-                        // LLAMADA CORREGIDA: Ahora pasamos vStep al final
-                        Vector3 localPos = ComputeCellVertexQEF(cache, x, y, z, p, ISO_THRESHOLD, vStep);
+                            // LLAMADA CORREGIDA: Ahora pasamos vStep al final
+                            Vector3 localPos = ComputeCellVertexQEF(cache, x, y, z, p, ISO_THRESHOLD, vStep);
 
-                        meshData.vertices.Add(localPos);
+                            meshData.vertices.Add(localPos);
 
-                        Vector3 normal = ComputeNormalFromCache(cache, x, y, z, p, size, lodIndex);
-                        meshData.normals.Add(normal);
+                            Vector3 normal = ComputeNormalFromCache(cache, x, y, z, p, size, lodIndex);
+                            meshData.normals.Add(normal);
+                        }
+                        else vmap[x, y, z] = -1;
                     }
-                    else vmap[x, y, z] = -1;
-                }
 
-        // 3. FASE DE CARAS (mismo rango de celdas: 0..size)
-        for (int z = 0; z <= size; z++)
-            for (int y = 0; y <= size; y++)
-                for (int x = 0; x <= size; x++)
-                {
-                    EmitCorrectFaces(cache, x, y, z, p, ISO_THRESHOLD, vmap, meshData.triangles, size);
-                }
+            // 3. FASE DE CARAS (mismo rango de celdas: 0..size)
+            for (int z = 0; z <= size; z++)
+                for (int y = 0; y <= size; y++)
+                    for (int x = 0; x <= size; x++)
+                    {
+                        EmitCorrectFaces(cache, x, y, z, p, ISO_THRESHOLD, vmap, meshData.triangles, size);
+                    }
 
+        }
 
+        finally
+        {
 
+            Interlocked.Decrement(ref mDCache.mRefs);
+
+        }
 
         return meshData;
     }

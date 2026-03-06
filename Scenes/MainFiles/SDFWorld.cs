@@ -98,7 +98,6 @@ public class World : MonoBehaviour
         {
             mGrid.SetProcessing(i, true);
             Chunk vChunk = mGrid.mChunks[i];
-            //mGrid.mChunks[i].mSize = 8;
             vChunk.Redim(VoxelUtils.LOD_DATA[VoxelUtils.GetInfoLod(2)]);
             //vChunk.PrepareView(mGrid.mWorldRoot.transform, mSurfaceMaterial);
             mChunkPipeline.EnqueueDensity(vChunk);
@@ -131,12 +130,11 @@ public class World : MonoBehaviour
 
     void Update()
     {
-        if (mVigilante != null && mCamera != null)
-            mVigilante.vCurrentCamPos = mCamera.transform.position;
+        //if (mVigilante != null && mCamera != null)
+        //    mVigilante.vCurrentCamPos = mCamera.transform.position;
 
         if (mCamera != null)
             mChunkPipeline.Update(mCamera.transform.position);
-
     }
 
     void OnDisable()

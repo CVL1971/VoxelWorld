@@ -45,7 +45,7 @@ public static class ArrayPool
         DCache vLodSamples;
         int count = mPool.Count;
 
-        while (count-- >0 && mPool.TryDequeue(out vLodSamples))
+        while (count-- > 0 && mPool.TryDequeue(out vLodSamples))
         {
             if (Interlocked.CompareExchange(ref vLodSamples.mRefs, 1, 0) == 0)
                 return vLodSamples;
@@ -53,8 +53,7 @@ public static class ArrayPool
             mPool.Enqueue(vLodSamples);
         }
 
-        return (new DCache(mLod0Length, mLod1Length, mLod2Length, 1));
-
+        return new DCache(mLod0Length, mLod1Length, mLod2Length, 1);
     }
 
     public static void Return(DCache pLodSamples)

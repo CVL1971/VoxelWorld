@@ -65,9 +65,6 @@ public static class GameObjectPool
    
     }
 
-    /// <summary> Cuántos objetos hay actualmente en el pool (para depuración). </summary>
-    public static int PoolCount => mPool.Count;
-
     public static void Return(Chunk pChunk)
     {
         mPool.Push(RecycleView(pChunk.mViewGO));

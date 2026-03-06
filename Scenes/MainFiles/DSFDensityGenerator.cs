@@ -5,6 +5,14 @@ using UnityEngine;
 
 public static class SDFGenerator
 {
+    public enum ChunkEarlyExitResult
+    {
+        Unknown,    // hay que samplear
+        Solid,      // chunk sólido
+        Empty       // chunk aire
+    }
+
+
     // --- PARÁMETROS DE CONFIGURACIÓN ---
     private const float BASE_SCALE = 0.0008f;
     private const float WARP_SCALE = 0.002f;
@@ -71,42 +79,20 @@ public static class SDFGenerator
     /// 
     public static void Sample(Chunk pChunk)
     {
-        //watch.Restart();
-        int savedSize = pChunk.mSize;
-        pChunk.ResetGenericBools();
-
         Vector3Int origin = pChunk.WorldOrigin;
         float chunkSize = (float)VoxelUtils.UNIVERSAL_CHUNK_SIZE;
+        ChunkEarlyExitResult vEval = DisableQuickEvaluate(pChunk);
 
-        // --- OPTIMIZACIÓN DE LÍMITES (EARLY EXIT) ---
-        // Comprobamos la altura en 5 puntos (4 esquinas + centro) para estimar el rango
-        float h00 = GetGeneratedHeight(origin.x, origin.z);
-        float h10 = GetGeneratedHeight(origin.x + chunkSize, origin.z);
-        float h01 = GetGeneratedHeight(origin.x, origin.z + chunkSize);
-        float h11 = GetGeneratedHeight(origin.x + chunkSize, origin.z + chunkSize);
-        float hMid = GetGeneratedHeight(origin.x + chunkSize * 0.5f, origin.z + chunkSize * 0.5f);
-
-        float minH = Mathf.Min(h00, Mathf.Min(h10, Mathf.Min(h01, Mathf.Min(h11, hMid))));
-        float maxH = Mathf.Max(h00, Mathf.Max(h10, Mathf.Max(h01, Mathf.Max(h11, hMid))));
-
-        // Margen de seguridad para variaciones locales del ruido entre muestras
-        const float margin = 8.0f;
-
-        // ¿Es aire puro ? (El suelo más alto está por debajo de la base del chunk)
-        if (origin.y > maxH + margin)
+        if (vEval != ChunkEarlyExitResult.Unknown)
         {
-            pChunk.mBool2 = true; // Tiene aire
-            pChunk.mBool1 = false; // No tiene sólido
+            pChunk.mBool1 = vEval == ChunkEarlyExitResult.Solid;
+            pChunk.mBool2 = vEval == ChunkEarlyExitResult.Empty;
+
+            pChunk.mGrid.MarkSurface(pChunk);
+            pChunk.ReturnDCache();
             return;
         }
 
-        // ¿Es sólido puro? (El valle más profundo está por encima del tope del chunk)
-        if (origin.y + chunkSize < minH - margin)
-        {
-            pChunk.mBool1 = true; // Tiene sólido
-            pChunk.mBool2 = false; // Tiene aire
-            return;
-        }
 
         //PROCESO NORMAL DE LLENADO DE CHUNK CON SUPERFICIE
 
@@ -165,9 +151,11 @@ public static class SDFGenerator
             }
         }
 
-        bool isSurface = pChunk.mBool1 && pChunk.mBool2;
+        //bool isSurface = ( pChunk.mBool1 && pChunk.mBool2) ;
+        bool isSurface = true;
+        
         pChunk.mGrid.MarkSurface(pChunk);
-      
+
 
         if (isSurface)
         {
@@ -185,6 +173,39 @@ public static class SDFGenerator
         Interlocked.Decrement(ref arrays.mRefs); //tanto si asignamos como si devolvemos
                                                  //este clase ya no referenciara ese array.
     }
+
+
+
+
+    public static ChunkEarlyExitResult HeightFivePointStrategy(Chunk pChunk)
+    {
+        const float margin = 8f;
+        Vector3Int origin = pChunk.WorldOrigin;
+        float chunkSize = (float)VoxelUtils.UNIVERSAL_CHUNK_SIZE;
+
+        float h00 = GetGeneratedHeight(origin.x, origin.z);
+        float h10 = GetGeneratedHeight(origin.x + chunkSize, origin.z);
+        float h01 = GetGeneratedHeight(origin.x, origin.z + chunkSize);
+        float h11 = GetGeneratedHeight(origin.x + chunkSize, origin.z + chunkSize);
+        float hMid = GetGeneratedHeight(origin.x + chunkSize * 0.5f, origin.z + chunkSize * 0.5f);
+
+        float minH = Mathf.Min(h00, Mathf.Min(h10, Mathf.Min(h01, Mathf.Min(h11, hMid))));
+        float maxH = Mathf.Max(h00, Mathf.Max(h10, Mathf.Max(h01, Mathf.Max(h11, hMid))));
+
+        if (origin.y > maxH + margin)
+            return ChunkEarlyExitResult.Empty;
+
+        if (origin.y + chunkSize < minH - margin)
+            return ChunkEarlyExitResult.Solid;
+
+        return ChunkEarlyExitResult.Unknown;
+    }
+
+    public static ChunkEarlyExitResult DisableQuickEvaluate(Chunk pChunk)
+    {
+        return ChunkEarlyExitResult.Unknown;
+    }
+
 
     //public static float GetGeneratedHeight(float x, float z)
     //{

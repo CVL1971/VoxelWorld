@@ -28,8 +28,8 @@ public class World : MonoBehaviour
     ChunkPipeline mChunkPipeline;
 
     MeshGenerator mMeshGenerator;
-    SurfaceNetsGeneratorQEF3caches mSurfaceNet = new SurfaceNetsGeneratorQEF3caches();
-    SurfaceNetsGeneratorQEF3caches mSurfaceNetQEF = new SurfaceNetsGeneratorQEF3caches();
+    DualContouringGenerator3caches mSurfaceNet = new DualContouringGenerator3caches();
+    DualContouringGenerator3caches mSurfaceNetQEF = new DualContouringGenerator3caches();
     private CancellationTokenSource mCTS;
 
   
@@ -130,8 +130,8 @@ public class World : MonoBehaviour
 
     void Update()
     {
-        //if (mVigilante != null && mCamera != null)
-        //    mVigilante.vCurrentCamPos = mCamera.transform.position;
+        if (mVigilante != null && mCamera != null)
+            mVigilante.vCurrentCamPos = mCamera.transform.position;
 
         if (mCamera != null)
             mChunkPipeline.Update(mCamera.transform.position);

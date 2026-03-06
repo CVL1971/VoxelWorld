@@ -81,7 +81,7 @@ public static class SDFGenerator
     {
         Vector3Int origin = pChunk.WorldOrigin;
         float chunkSize = (float)VoxelUtils.UNIVERSAL_CHUNK_SIZE;
-        ChunkEarlyExitResult vEval = DisableQuickEvaluate(pChunk);
+        ChunkEarlyExitResult vEval = HeightFivePointStrategy(pChunk);
 
         if (vEval != ChunkEarlyExitResult.Unknown)
         {
@@ -151,8 +151,8 @@ public static class SDFGenerator
             }
         }
 
-        //bool isSurface = ( pChunk.mBool1 && pChunk.mBool2) ;
-        bool isSurface = true;
+        bool isSurface = ( pChunk.mBool1 && pChunk.mBool2) ;
+       
         
         pChunk.mGrid.MarkSurface(pChunk);
 
@@ -339,6 +339,40 @@ public static class SDFGenerator
         }
 
         Object.DestroyImmediate(tex);
+    }
+
+    /// <summary>
+    /// Gradiente desde cache. Devuelve normal apuntando de sólido hacia aire (exterior).
+    /// Clamp [-1, size] para permitir celdas de borde; GetD(nx±1) requiere nx en [0, size].
+    /// </summary>
+    public static Vector3 ComputeNormal(float[] cache, int cx, int cy, int cz, int p, int size)
+    {
+        int radius = 2;
+        float gx = 0f, gy = 0f, gz = 0f;
+        int count = 0;
+
+        for (int dz = -radius; dz <= radius; dz++)
+            for (int dy = -radius; dy <= radius; dy++)
+                for (int dx = -radius; dx <= radius; dx++)
+                {
+                    int nx = Mathf.Clamp(cx + dx, 0, size);
+                    int ny = Mathf.Clamp(cy + dy, 0, size);
+                    int nz = Mathf.Clamp(cz + dz, 0, size);
+
+                    gx += GetD(cache, nx - 1, ny, nz, p) - GetD(cache, nx + 1, ny, nz, p);
+                    gy += GetD(cache, nx, ny - 1, nz, p) - GetD(cache, nx, ny + 1, nz, p);
+                    gz += GetD(cache, nx, ny, nz - 1, p) - GetD(cache, nx, ny, nz + 1, p);
+                    count++;
+                }
+
+        Vector3 grad = new Vector3(gx / count, gy / count, gz / count);
+        return grad.sqrMagnitude < 0.0001f ? Vector3.up : grad.normalized;
+    }
+
+    private static float GetD(float[] c, int x, int y, int z, int p)
+    {
+        // El padding de la caché es de 1 en cada eje
+        return c[(x + 1) + p * ((y + 1) + p * (z + 1))];
     }
 }
 

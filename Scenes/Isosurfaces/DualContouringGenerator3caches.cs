@@ -60,7 +60,7 @@ public class DualContouringGenerator3caches : MeshGenerator
                         if (!CellCrossesIso(cache, x, y, z, p))
                             continue;
 
-                        Vector3 pos = SolveQEFStable(chunk, cache, x, y, z, p, vStep);
+                        Vector3 pos = SolveQEFStable(cache, x, y, z, p, vStep);
 
                         // Bias hacia el interior en bordes positivos para evitar z-fighting por precisión
                         if (x == size) pos.x -= BOUNDARY_BIAS;
@@ -178,10 +178,11 @@ public class DualContouringGenerator3caches : MeshGenerator
 
     // ====================== QEF SOLVER =======================
 
-    Vector3 SolveQEFStable(Chunk chunk, float[] cache,
-        int x, int y, int z, int p, float step)
+    Vector3 SolveQEFStable(float[] cache, int x, int y, int z, int p, float step)
     {
-        List<Vector3> pts = new();
+        int size = p - 3;
+        List<Vector3> positions = new();
+        List<Vector3> normals = new();
 
         void Check(int x0, int y0, int z0, int x1, int y1, int z1)
         {
@@ -189,15 +190,16 @@ public class DualContouringGenerator3caches : MeshGenerator
             float d1 = GetD(cache, x1, y1, z1, p);
             if (!SignChange(d0, d1)) return;
 
-            float t = Mathf.Clamp01((ISO_THRESHOLD - d0) / (d1 - d0 + 0.000001f));
+            float t = Mathf.Clamp01((ISO_THRESHOLD - d0) / (d1 - d0 + 1e-6f));
             Vector3 p0 = new Vector3(x0, y0, z0) * step;
             Vector3 p1 = new Vector3(x1, y1, z1) * step;
             Vector3 pos = Vector3.Lerp(p0, p1, t);
 
-            pts.Add(pos);
+            Vector3 normal = ComputeNormalFromCache(cache, x0, y0, z0, p, size);
+            positions.Add(pos);
+            normals.Add(normal);
         }
 
-        // 12 aristas de la celda
         Check(x, y, z, x + 1, y, z);
         Check(x, y + 1, z, x + 1, y + 1, z);
         Check(x, y, z + 1, x + 1, y, z + 1);
@@ -213,10 +215,70 @@ public class DualContouringGenerator3caches : MeshGenerator
         Check(x, y + 1, z, x, y + 1, z + 1);
         Check(x + 1, y + 1, z, x + 1, y + 1, z + 1);
 
-        if (pts.Count == 0)
+        if (positions.Count == 0)
             return new Vector3((x + 0.5f) * step, (y + 0.5f) * step, (z + 0.5f) * step);
 
-        return Average(pts);
+        return SolveLeastSquaresClamped(positions, normals, x, y, z, step);
+    }
+
+    Vector3 SolveLeastSquaresClamped(List<Vector3> pts, List<Vector3> nms, int cx, int cy, int cz, float step)
+    {
+        float m00 = 0, m01 = 0, m02 = 0, m11 = 0, m12 = 0, m22 = 0;
+        float b0 = 0, b1 = 0, b2 = 0;
+
+        for (int i = 0; i < pts.Count; i++)
+        {
+            Vector3 n = nms[i];
+            Vector3 p = pts[i];
+            float d = Vector3.Dot(n, p);
+
+            m00 += n.x * n.x; m01 += n.x * n.y; m02 += n.x * n.z;
+            m11 += n.y * n.y; m12 += n.y * n.z;
+            m22 += n.z * n.z;
+
+            b0 += d * n.x;
+            b1 += d * n.y;
+            b2 += d * n.z;
+        }
+
+        float minX = cx * step, maxX = (cx + 1) * step;
+        float minY = cy * step, maxY = (cy + 1) * step;
+        float minZ = cz * step, maxZ = (cz + 1) * step;
+
+        float det = m00 * (m11 * m22 - m12 * m12)
+            - m01 * (m01 * m22 - m12 * m02)
+            + m02 * (m01 * m12 - m11 * m02);
+
+        Vector3 result;
+
+        if (Mathf.Abs(det) < 1e-6f)
+        {
+            result = Average(pts);
+        }
+        else
+        {
+            float c00 = m11 * m22 - m12 * m12;
+            float c01 = m02 * m12 - m01 * m22;
+            float c02 = m01 * m12 - m02 * m11;
+            float c11 = m00 * m22 - m02 * m02;
+            float c12 = m01 * m02 - m00 * m12;
+            float c22 = m00 * m11 - m01 * m01;
+
+            float inv = 1f / det;
+            float vx = (c00 * b0 + c01 * b1 + c02 * b2) * inv;
+            float vy = (c01 * b0 + c11 * b1 + c12 * b2) * inv;
+            float vz = (c02 * b0 + c12 * b1 + c22 * b2) * inv;
+            result = new Vector3(vx, vy, vz);
+        }
+
+        bool needsClamp = result.x < minX || result.x > maxX
+            || result.y < minY || result.y > maxY
+            || result.z < minZ || result.z > maxZ;
+
+        if (needsClamp)
+            return Average(pts);
+
+        return result;
     }
 
     Vector3 Average(List<Vector3> pts)

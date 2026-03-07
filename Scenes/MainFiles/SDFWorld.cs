@@ -28,8 +28,8 @@ public class World : MonoBehaviour
     ChunkPipeline mChunkPipeline;
 
     MeshGenerator mMeshGenerator;
-    DualContouringGenerator3caches mSurfaceNet = new DualContouringGenerator3caches();
-    DualContouringGenerator3caches mSurfaceNetQEF = new DualContouringGenerator3caches();
+    SurfaceNetsGeneratorQEF3caches mSurfaceNet = new SurfaceNetsGeneratorQEF3caches();
+    SurfaceNetsGeneratorQEF3caches mSurfaceNetQEF = new SurfaceNetsGeneratorQEF3caches();
     private CancellationTokenSource mCTS;
 
   
@@ -99,7 +99,7 @@ public class World : MonoBehaviour
             mGrid.SetProcessing(i, true);
             Chunk vChunk = mGrid.mChunks[i];
             vChunk.Redim(VoxelUtils.LOD_DATA[VoxelUtils.GetInfoLod(2)]);
-            //vChunk.PrepareView(mGrid.mWorldRoot.transform, mSurfaceMaterial);
+            vChunk.PrepareView(mGrid.mWorldRoot.transform, mSurfaceMaterial);
             mChunkPipeline.EnqueueDensity(vChunk);
         }
 

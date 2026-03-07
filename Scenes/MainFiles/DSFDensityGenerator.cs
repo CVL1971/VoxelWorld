@@ -43,33 +43,46 @@ public static class SDFGenerator
         return h - worldPos.y;
     }
 
+    //public static float GetGeneratedHeight(float x, float z)
+    //{
+    //    // 1. CONTINENTES (Estructura base)
+    //    float C = Mathf.PerlinNoise(x * BASE_SCALE, z * BASE_SCALE);
+
+    //    // 2. DOMAIN WARPING (Para que las montañas no parezcan nubes de Perlin)
+    //    Vector2 p = Warp(x, z);
+
+    //    // M: Montañas (Ridged Noise para crestas afiladas)
+    //    float noiseM = Mathf.PerlinNoise(p.x * 0.01f, p.y * 0.01f);
+    //    float M = 1.0f - Mathf.Abs((noiseM * 2.0f) - 1.0f);
+    //    float mountain = M * M;
+
+    //    // D: Detalle fino (Roca y suelo)
+    //    float D = (Mathf.PerlinNoise(p.x * 0.08f, p.y * 0.08f) * 2.0f) - 1.0f;
+
+    //    // 3. MEZCLA LÓGICA (La personalidad geológica)
+    //    float baseLayer = SmoothStep(-0.2f, 0.6f, (C * 2.0f) - 1.0f);
+
+    //    // Las montañas solo crecen en los continentes
+    //    mountain *= (baseLayer * baseLayer);
+    //    float valley = baseLayer * (1.0f - mountain);
+
+    //    // Resultado final en metros (Y)
+    //    float h = (baseLayer * 40.0f) + (mountain * 120.0f) + (valley * 25.0f) + (D * 5.0f * baseLayer);
+
+    //    return h;
+    //}
+
     public static float GetGeneratedHeight(float x, float z)
     {
-        // 1. CONTINENTES (Estructura base)
-        float C = Mathf.PerlinNoise(x * BASE_SCALE, z * BASE_SCALE);
+        const float SCALE = 0.05f;   // frecuencia espacial
+        const float AMPLITUDE = 40f; // altura máxima
 
-        // 2. DOMAIN WARPING (Para que las montañas no parezcan nubes de Perlin)
-        Vector2 p = Warp(x, z);
+        float sx = Mathf.Sin(x * SCALE);
+        float sz = Mathf.Sin(z * SCALE);
 
-        // M: Montañas (Ridged Noise para crestas afiladas)
-        float noiseM = Mathf.PerlinNoise(p.x * 0.01f, p.y * 0.01f);
-        float M = 1.0f - Mathf.Abs((noiseM * 2.0f) - 1.0f);
-        float mountain = M * M;
+        float height = (sx + sz) * 0.5f;
 
-        // D: Detalle fino (Roca y suelo)
-        float D = (Mathf.PerlinNoise(p.x * 0.08f, p.y * 0.08f) * 2.0f) - 1.0f;
-
-        // 3. MEZCLA LÓGICA (La personalidad geológica)
-        float baseLayer = SmoothStep(-0.2f, 0.6f, (C * 2.0f) - 1.0f);
-
-        // Las montañas solo crecen en los continentes
-        mountain *= (baseLayer * baseLayer);
-        float valley = baseLayer * (1.0f - mountain);
-
-        // Resultado final en metros (Y)
-        float h = (baseLayer * 40.0f) + (mountain * 120.0f) + (valley * 25.0f) + (D * 5.0f * baseLayer);
-
-        return h;
+        return height * AMPLITUDE;
     }
 
     /// <summary>
@@ -81,7 +94,7 @@ public static class SDFGenerator
     {
         Vector3Int origin = pChunk.WorldOrigin;
         float chunkSize = (float)VoxelUtils.UNIVERSAL_CHUNK_SIZE;
-        ChunkEarlyExitResult vEval = HeightFivePointStrategy(pChunk);
+        ChunkEarlyExitResult vEval = DisableQuickEvaluate(pChunk);
 
         if (vEval != ChunkEarlyExitResult.Unknown)
         {

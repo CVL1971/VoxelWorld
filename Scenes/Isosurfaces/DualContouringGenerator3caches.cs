@@ -218,6 +218,20 @@ public class DualContouringGenerator3caches : MeshGenerator
         if (positions.Count == 0)
             return new Vector3((x + 0.5f) * step, (y + 0.5f) * step, (z + 0.5f) * step);
 
+        // --- Hybrid SurfaceNets / DualContouring ---
+
+        float maxAngle = ComputeMaxNormalAngle(normals);
+
+        // umbral típico 25°–35°
+        const float FEATURE_THRESHOLD = 40f;
+
+        if (maxAngle < FEATURE_THRESHOLD)
+        {
+            // superficie suave → Surface Nets
+            return Average(positions);
+        }
+
+        // feature real → Dual Contouring
         return SolveLeastSquaresClamped(positions, normals, x, y, z, step);
     }
 
@@ -347,4 +361,21 @@ public class DualContouringGenerator3caches : MeshGenerator
         Vector3 grad = new Vector3(gx / count, gy / count, gz / count);
         return grad.sqrMagnitude < 0.0001f ? Vector3.up : grad.normalized;
     }
+
+    float ComputeMaxNormalAngle(List<Vector3> normals)
+    {
+        float maxAngle = 0f;
+
+        for (int i = 0; i < normals.Count; i++)
+            for (int j = i + 1; j < normals.Count; j++)
+            {
+                float angle = Vector3.Angle(normals[i], normals[j]);
+                if (angle > maxAngle)
+                    maxAngle = angle;
+            }
+
+        return maxAngle;
+    }
+
+
 }

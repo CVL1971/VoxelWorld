@@ -111,7 +111,7 @@ public class ChunkPipeline
         {
             pChunk = result.mChunk;
             pStructural = result.mStructural;
-            //AdaptChunk(pChunk);
+            AdaptChunk(pChunk);
             return true;
 
         }

@@ -72,18 +72,18 @@ public static class SDFGenerator
     //    return h;
     //}
 
-    public static float GetGeneratedHeight(float x, float z)
-    {
-        const float SCALE = 0.05f;   // frecuencia espacial
-        const float AMPLITUDE = 40f; // altura máxima
+    //public static float GetGeneratedHeight(float x, float z)
+    //{
+    //    const float SCALE = 0.05f;   // frecuencia espacial
+    //    const float AMPLITUDE = 40f; // altura máxima
 
-        float sx = Mathf.Sin(x * SCALE);
-        float sz = Mathf.Sin(z * SCALE);
+    //    float sx = Mathf.Sin(x * SCALE);
+    //    float sz = Mathf.Sin(z * SCALE);
 
-        float height = (sx + sz) * 0.5f;
+    //    float height = (sx + sz) * 0.5f;
 
-        return height * AMPLITUDE;
-    }
+    //    return height * AMPLITUDE;
+    //}
 
     /// <summary>
     /// Rellena el Chunk usando el nuevo gradiente de distancia.
@@ -94,14 +94,18 @@ public static class SDFGenerator
     {
         Vector3Int origin = pChunk.WorldOrigin;
         float chunkSize = (float)VoxelUtils.UNIVERSAL_CHUNK_SIZE;
-        ChunkEarlyExitResult vEval = DisableQuickEvaluate(pChunk);
+        ChunkEarlyExitResult vEval = HeightFivePointStrategy(pChunk);
+        ChunkEarlyExitResult vEval2 = HeightNinePointStrategy(pChunk);
 
-        if (vEval != ChunkEarlyExitResult.Unknown)
+        if (vEval == vEval2 && vEval != ChunkEarlyExitResult.Unknown)
         {
-            pChunk.mBool1 = vEval == ChunkEarlyExitResult.Solid;
-            pChunk.mBool2 = vEval == ChunkEarlyExitResult.Empty;
+            bool solid = vEval == ChunkEarlyExitResult.Solid;
+
+            pChunk.mBool1 = solid;
+            pChunk.mBool2 = !solid;
 
             pChunk.mGrid.MarkSurface(pChunk);
+
             pChunk.ReturnDCache();
             return;
         }
@@ -154,11 +158,9 @@ public static class SDFGenerator
 
                         cache[idx] = density;
 
-                        if (x > 0 && x <= N && y > 0 && y <= N && z > 0 && z <= N)
-                        {
                             if (density >= ISO_SURFACE) pChunk.mBool1 = true;
                             else pChunk.mBool2 = true;
-                        }
+                        
                     }
                 }
             }
@@ -214,43 +216,125 @@ public static class SDFGenerator
         return ChunkEarlyExitResult.Unknown;
     }
 
+    public static ChunkEarlyExitResult HeightNinePointStrategy(Chunk pChunk)
+    {
+        const float margin = 8f;
+
+        Vector3Int origin = pChunk.WorldOrigin;
+        float chunkSize = VoxelUtils.UNIVERSAL_CHUNK_SIZE;
+
+        float minH = float.MaxValue;
+        float maxH = float.MinValue;
+
+        for (int ix = 0; ix <= 2; ix++)
+            for (int iz = 0; iz <= 2; iz++)
+            {
+                float x = origin.x + chunkSize * (ix * 0.5f);
+                float z = origin.z + chunkSize * (iz * 0.5f);
+
+                float h = GetGeneratedHeight(x, z);
+
+                minH = Mathf.Min(minH, h);
+                maxH = Mathf.Max(maxH, h);
+            }
+
+        if (origin.y > maxH + margin)
+            return ChunkEarlyExitResult.Empty;
+
+        if (origin.y + chunkSize < minH - margin)
+            return ChunkEarlyExitResult.Solid;
+
+        return ChunkEarlyExitResult.Unknown;
+    }
+
+    public static ChunkEarlyExitResult HeightGradientStrategy(Chunk pChunk)
+    {
+        const float margin = 8f;
+
+        Vector3Int origin = pChunk.WorldOrigin;
+        float chunkSize = VoxelUtils.UNIVERSAL_CHUNK_SIZE;
+
+        float hCenter = GetGeneratedHeight(
+            origin.x + chunkSize * 0.5f,
+            origin.z + chunkSize * 0.5f
+        );
+
+        float hX = GetGeneratedHeight(
+            origin.x + chunkSize,
+            origin.z + chunkSize * 0.5f
+        );
+
+        float hZ = GetGeneratedHeight(
+            origin.x + chunkSize * 0.5f,
+            origin.z + chunkSize
+        );
+
+        float minH = Mathf.Min(hCenter, Mathf.Min(hX, hZ));
+        float maxH = Mathf.Max(hCenter, Mathf.Max(hX, hZ));
+
+        if (origin.y > maxH + margin)
+            return ChunkEarlyExitResult.Empty;
+
+        if (origin.y + chunkSize < minH - margin)
+            return ChunkEarlyExitResult.Solid;
+
+        return ChunkEarlyExitResult.Unknown;
+    }
+
+    public static ChunkEarlyExitResult HeightBoundsStrategy(Chunk pChunk)
+    {
+        const float MAX_HEIGHT = 200f;
+        const float MIN_HEIGHT = -50f;
+
+        Vector3Int origin = pChunk.WorldOrigin;
+        float chunkSize = VoxelUtils.UNIVERSAL_CHUNK_SIZE;
+
+        if (origin.y > MAX_HEIGHT)
+            return ChunkEarlyExitResult.Empty;
+
+        if (origin.y + chunkSize < MIN_HEIGHT)
+            return ChunkEarlyExitResult.Solid;
+
+        return ChunkEarlyExitResult.Unknown;
+    }
+
     public static ChunkEarlyExitResult DisableQuickEvaluate(Chunk pChunk)
     {
         return ChunkEarlyExitResult.Unknown;
     }
 
 
-    //public static float GetGeneratedHeight(float x, float z)
-    //{
-    //    // --- CONTINENTES (SIN WARP) ---
-    //    float C = Mathf.PerlinNoise(x * 0.0008f, z * 0.0008f);
+    public static float GetGeneratedHeight(float x, float z)
+    {
+        // --- CONTINENTES (SIN WARP) ---
+        float C = Mathf.PerlinNoise(x * 0.0008f, z * 0.0008f);
 
-    //    // --- WARP SOLO PARA DETALLE Y MONTAÑAS ---
-    //    Vector2 p = Warp(x, z);
+        // --- WARP SOLO PARA DETALLE Y MONTAÑAS ---
+        Vector2 p = Warp(x, z);
 
-    //    // M: Montañas (ridged)
-    //    float noiseM = Mathf.PerlinNoise(p.x * 0.01f, p.y * 0.01f);
-    //    float M = 1.0f - Mathf.Abs((noiseM * 2.0f) - 1.0f);
+        // M: Montañas (ridged)
+        float noiseM = Mathf.PerlinNoise(p.x * 0.01f, p.y * 0.01f);
+        float M = 1.0f - Mathf.Abs((noiseM * 2.0f) - 1.0f);
 
-    //    // D: detalle fino
-    //    float D = (Mathf.PerlinNoise(p.x * 0.08f, p.y * 0.08f) * 2.0f) - 1.0f;
+        // D: detalle fino
+        float D = (Mathf.PerlinNoise(p.x * 0.08f, p.y * 0.08f) * 2.0f) - 1.0f;
 
-    //    // --- MEZCLA ---
-    //    float baseLayer = SmoothStep(-0.2f, 0.6f, (C * 2.0f) - 1.0f);
+        // --- MEZCLA ---
+        float baseLayer = SmoothStep(-0.2f, 0.6f, (C * 2.0f) - 1.0f);
 
-    //    float mountain = M * M;
-    //    mountain *= baseLayer * baseLayer;
+        float mountain = M * M;
+        mountain *= baseLayer * baseLayer;
 
-    //    float valley = baseLayer * (1.0f - mountain);
+        float valley = baseLayer * (1.0f - mountain);
 
-    //    float h =
-    //         baseLayer * 40.0f +
-    //         mountain * 120.0f +
-    //         valley * 25.0f +
-    //         D * 5.0f * baseLayer; // evita ruido en océanos
+        float h =
+             baseLayer * 40.0f +
+             mountain * 120.0f +
+             valley * 25.0f +
+             D * 5.0f * baseLayer; // evita ruido en océanos
 
-    //    return h;
-    //}
+        return h;
+    }
 
     /// <summary>
     /// Inyecta un mapa de alturas 2D como un volumen SDF coherente.

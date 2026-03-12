@@ -5,7 +5,7 @@ public class SurfaceNetsGenerator : MeshGenerator
 {
     protected const float ISO_THRESHOLD = 0.5f;
 
-    public override MeshData Generate(Chunk pChunk, Chunk[] allChunks, Vector3Int worldSize)
+    public override MeshData Generate(IChunk pChunk, Chunk[] allChunks, Vector3Int worldSize)
     {
         int size = pChunk.mSize > 0 ? pChunk.mSize : VoxelUtils.UNIVERSAL_CHUNK_SIZE;
         int lodIndex = VoxelUtils.GetInfoRes(size);

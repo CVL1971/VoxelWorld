@@ -4,7 +4,7 @@ using Unity.VisualScripting;
 using UnityEngine;
 using static ArrayPool;
 
-public sealed class Chunk
+public class Chunk: IChunk
 {
     /// <summary> Conteo de instancias vivas (para auditoría de memoria). </summary>
     public static int s_AliveCount => Volatile.Read(ref s_AliveCountValue);
@@ -20,6 +20,11 @@ public sealed class Chunk
     public Vector3Int mGlobalCoord;
     internal int mPending; // contador privado del sistema
 
+
+    public virtual ArrayPool.DCache DCache
+    {
+        get { return mDCache; }
+    }
     /// <summary> Resolución actual del chunk (32, 16 u 8). </summary>
     public int mSize { get; private set; }
     /// <summary> Resolución objetivo para la próxima actualización de LOD. </summary>
@@ -48,7 +53,10 @@ public sealed class Chunk
     public GameObject mViewGO;
 
     // Umbral de superficie (Iso-surface)
-    public const float ISO_LEVEL = 0.5f;
+    public float ISO_LEVEL
+    {
+        get { return 0.5f; }
+    }
 
     // =========================================================
     // CONSTRUCTOR

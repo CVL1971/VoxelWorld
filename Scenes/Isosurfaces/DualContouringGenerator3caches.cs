@@ -10,7 +10,7 @@ public class DualContouringGenerator3caches : MeshGenerator
     /// <summary> Desplazamiento mínimo hacia el interior en vértices de borde positivo para evitar z-fighting por precisión. </summary>
     private const float BOUNDARY_BIAS = 1e-5f;
 
-    public override MeshData Generate(Chunk chunk, Chunk[] allChunks, Vector3Int worldSize)
+    public override MeshData Generate(IChunk chunk, Chunk[] allChunks, Vector3Int worldSize)
     {
         int size = chunk.mSize <= 0 ? VoxelUtils.UNIVERSAL_CHUNK_SIZE : chunk.mSize;
         int lodIndex = VoxelUtils.GetInfoRes(size);
@@ -20,7 +20,7 @@ public class DualContouringGenerator3caches : MeshGenerator
 
         // 1. SELECCIÓN DE CACHÉ SEGÚN LOD
         float[] cache;
-        ArrayPool.DCache mDCache = chunk.mDCache;
+        ArrayPool.DCache mDCache = chunk.DCache;
         Interlocked.Increment(ref mDCache.mRefs);
 
         try

@@ -5,7 +5,7 @@ public class SurfaceNetsGeneratorQEFOriginal2 : MeshGenerator
 {
     private const float ISO_THRESHOLD = 0.5f;
 
-    public override MeshData Generate(Chunk pChunk, Chunk[] allChunks, Vector3Int worldSize)
+    public override MeshData Generate(IChunk pChunk, Chunk[] allChunks, Vector3Int worldSize)
     {
         System.Diagnostics.Stopwatch vWatch = new System.Diagnostics.Stopwatch();
         vWatch.Restart();

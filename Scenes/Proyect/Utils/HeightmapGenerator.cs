@@ -1,7 +1,7 @@
 using UnityEngine;
 using System.IO;
 
-public static class HeightmapManager
+public static class HeightmapManager2
 {
     // Usamos .exr para mantener precisión de 32 bits (adiós escalones)
     private const string DEFAULT_PATH = @"E:\maps\1.exr";

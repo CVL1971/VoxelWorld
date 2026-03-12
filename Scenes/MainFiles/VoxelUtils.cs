@@ -45,7 +45,7 @@ public static class VoxelUtils
 
 
 
-    public static float GetDensityGlobal(Chunk currentChunk, Chunk[] allChunks, Vector3Int worldSize, float x, float y, float z)
+    public static float GetDensityGlobal(IChunk currentChunk, Chunk[] allChunks, Vector3Int worldSize, float x, float y, float z)
     {
 
 
@@ -284,7 +284,7 @@ public static class VoxelUtils
     //    return Mathf.Lerp(c0, c1, tz);
     //}
 
-    public static float GetDensityGlobalFinal(Chunk currentChunk, Chunk[] allChunks, Vector3Int worldSize, float x, float y, float z)
+    public static float GetDensityGlobalFinal(IChunk currentChunk, Chunk[] allChunks, Vector3Int worldSize, float x, float y, float z)
     {
         int ix = Mathf.RoundToInt(x);
         int iy = Mathf.RoundToInt(y);
@@ -300,24 +300,24 @@ public static class VoxelUtils
         int dy = (iy < 0) ? -1 : (iy >= currentChunk.mSize ? 1 : 0);
         int dz = (iz < 0) ? -1 : (iz >= currentChunk.mSize ? 1 : 0);
 
-        Vector3Int neighborCoord = currentChunk.mCoord + new Vector3Int(dx, dy, dz);
+        //Vector3Int neighborCoord = currentChunk.mCoord + new Vector3Int(dx, dy, dz);
 
-        if (IsInBounds(neighborCoord.x, neighborCoord.y, neighborCoord.z, worldSize))
-        {
-            Chunk neighbor = allChunks[GetChunkIndex(neighborCoord.x, neighborCoord.y, neighborCoord.z, worldSize)];
+        //if (IsInBounds(neighborCoord.x, neighborCoord.y, neighborCoord.z, worldSize))
+        //{
+        //    Chunk neighbor = allChunks[GetChunkIndex(neighborCoord.x, neighborCoord.y, neighborCoord.z, worldSize)];
 
-            // CONDICIÓN DISCRETA: Solo si existe, tiene datos y el LOD es IDÉNTICO.
-            // Si el LOD es distinto, no hay transformación matemática válida: abortamos al SDF.
-            if (neighbor != null && neighbor.mSize == currentChunk.mSize)
-            {
-                // Mapeo simple de índices (ej: x=32 se vuelve x=0 en el vecino)
-                int nix = (ix < 0) ? ix + neighbor.mSize : (ix >= currentChunk.mSize ? ix - currentChunk.mSize : ix);
-                int niy = (iy < 0) ? iy + neighbor.mSize : (iy >= currentChunk.mSize ? iy - currentChunk.mSize : iy);
-                int niz = (iz < 0) ? iz + neighbor.mSize : (iz >= currentChunk.mSize ? iz - currentChunk.mSize : iz);
+        //    // CONDICIÓN DISCRETA: Solo si existe, tiene datos y el LOD es IDÉNTICO.
+        //    // Si el LOD es distinto, no hay transformación matemática válida: abortamos al SDF.
+        //    if (neighbor != null && neighbor.mSize == currentChunk.mSize)
+        //    {
+        //        // Mapeo simple de índices (ej: x=32 se vuelve x=0 en el vecino)
+        //        int nix = (ix < 0) ? ix + neighbor.mSize : (ix >= currentChunk.mSize ? ix - currentChunk.mSize : ix);
+        //        int niy = (iy < 0) ? iy + neighbor.mSize : (iy >= currentChunk.mSize ? iy - currentChunk.mSize : iy);
+        //        int niz = (iz < 0) ? iz + neighbor.mSize : (iz >= currentChunk.mSize ? iz - currentChunk.mSize : iz);
 
-                return neighbor.GetDensity(nix, niy, niz);
-            }
-        }
+        //        return neighbor.GetDensity(nix, niy, niz);
+        //    }
+        //}
 
         // 3. VÍA SDF: El refugio matemático.
         // Solo llegamos aquí si el vecino no existe, está en otro LOD o está procesando.

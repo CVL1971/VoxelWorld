@@ -14,12 +14,12 @@ public class World : MonoBehaviour
     [SerializeField] Material mSolidMaterial;
     private float mDebugTimer = 0;
 
-
     [Header("PlayerPosition")]
     [SerializeField] Camera mCamera;
 
     [SerializeField]
     Material mSurfaceMaterial;
+
     Grid mGrid;
     Vector3Int mGridInUnits;
     Vector3Int mGridInChunks;
@@ -43,11 +43,9 @@ public class World : MonoBehaviour
     [SerializeField] float mMaxWaitTime = 0.4f;   // Si hay cola y no llegamos al mínimo, esperar como mucho esto
     [SerializeField] int mChunksPerFrame = 40;     // Chunks a resamplear + mallar por frame (LOD visible)
     [SerializeField] float mMaxMillisecondsPerFrame = 32.0f; // Tiempo máximo de procesamiento por frame (16ms = 60fps)
-    private float mTimer = 0f;
+   
     private bool mIsProcessing = false;           // Flag para saber si estamos procesando
    
-
-
 
     void Start()
     {
@@ -57,10 +55,8 @@ public class World : MonoBehaviour
         //sw.Stop();
         #endregion
 
-       
-
         mChunkSize = VoxelUtils.UNIVERSAL_CHUNK_SIZE;
-        mGridInChunks = new Vector3Int(91, 11, 91);
+        mGridInChunks = new Vector3Int(121, 21, 121);
         mGridInUnits = mGridInChunks * mChunkSize;
         mGrid = new Grid(mGridInChunks, mChunkSize, mCamera.transform.position);
 
@@ -133,7 +129,7 @@ public class World : MonoBehaviour
         if (mVigilante != null && mCamera != null)
             mVigilante.vCurrentCamPos = mCamera.transform.position;
 
-        if (mCamera != null)
+        if (mCamera != null && mChunkPipeline != null)
             mChunkPipeline.Update(mCamera.transform.position);
     }
 

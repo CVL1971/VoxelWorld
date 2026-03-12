@@ -7,7 +7,7 @@ public class SurfaceNetsNewGeneration1 : MeshGenerator
     const float ISO_THRESHOLD = 0.5f;
     const float BOUNDARY_BIAS = 1e-5f;
 
-    public override MeshData Generate(Chunk chunk, Chunk[] allChunks, Vector3Int worldSize)
+    public override MeshData Generate(IChunk chunk, Chunk[] allChunks, Vector3Int worldSize)
     {
         int size = chunk.mSize <= 0 ? VoxelUtils.UNIVERSAL_CHUNK_SIZE : chunk.mSize;
         int lodIndex = VoxelUtils.GetInfoRes(size);
@@ -16,7 +16,7 @@ public class SurfaceNetsNewGeneration1 : MeshGenerator
         MeshData mesh = new MeshData();
 
         float[] cache;
-        ArrayPool.DCache mDCache = chunk.mDCache;
+        ArrayPool.DCache mDCache = chunk.DCache;
         Interlocked.Increment(ref mDCache.mRefs);
 
         try

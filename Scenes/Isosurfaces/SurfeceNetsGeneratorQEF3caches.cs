@@ -6,26 +6,38 @@ public class SurfaceNetsGeneratorQEF3caches : MeshGenerator
 {
     private const float ISO_THRESHOLD = 0.5f;
 
-    public override MeshData Generate(Chunk pChunk, Chunk[] allChunks, Vector3Int worldSize)
-    {
+    public override MeshData Generate(IChunk pChunk, Chunk[] allChunks, Vector3Int worldSize)
+    {   
+
+
+
         int size = pChunk.mSize <= 0 ? VoxelUtils.UNIVERSAL_CHUNK_SIZE : pChunk.mSize;
         int lodIndex = VoxelUtils.GetInfoRes(size);
-        float vStep = VoxelUtils.LOD_DATA[lodIndex + 1];
+        float vStep=0;
 
         MeshData meshData = new MeshData();
+        ArrayPool.DCache mDCache=null;
+        vStep = VoxelUtils.LOD_DATA[lodIndex + 1];
+
 
         // 1. SELECCIÓN DE CACHÉ SEGÚN LOD
         float[] cache;
-        ArrayPool.DCache mDCache = pChunk.mDCache;
-        Interlocked.Increment(ref mDCache.mRefs);
 
-        try
+        if (pChunk is nChunkB superChunk)
         {
-
-
+            // SuperChunk usa su propio array
+            cache = superChunk.mSamples;
+            vStep = superChunk.ChunkSize / superChunk.mSize;
+        }
+        else
+        {
+            mDCache = pChunk.DCache;
+            Interlocked.Increment(ref mDCache.mRefs);
             if (lodIndex == 0)
             {
                 cache = mDCache.mSample0;
+               
+
             }
             else if (lodIndex == 4)
             {
@@ -35,6 +47,14 @@ public class SurfaceNetsGeneratorQEF3caches : MeshGenerator
             {
                 cache = mDCache.mSample2;
             }
+        }
+
+
+        try
+        {
+
+
+            
 
             //if (cache == null) return meshData;
 
@@ -77,8 +97,10 @@ public class SurfaceNetsGeneratorQEF3caches : MeshGenerator
 
         finally
         {
-
-            Interlocked.Decrement(ref mDCache.mRefs);
+            if (pChunk is Chunk vchunk)
+            {
+                Interlocked.Decrement(ref mDCache.mRefs);
+            }
 
         }
 
